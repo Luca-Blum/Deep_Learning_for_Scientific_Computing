@@ -1,6 +1,7 @@
 import pandas as pd
 import torch
 import numpy as np
+from sklearn import preprocessing
 
 
 class Datahandler:
@@ -10,9 +11,17 @@ class Datahandler:
         :param type(str): tf0 or ts0
         """
         df = pd.read_csv(txt_file)
-        self.tfo = torch.tensor(df['tf0'].values.astype(np.float32).reshape((-1, 1)))
-        self.tso = torch.tensor(df['ts0'].values.astype(np.float32).reshape((-1, 1)))
-        self.t = torch.tensor(df['t'].values.astype(np.float32).reshape((-1, 1)))
+
+        print(df)
+
+        min_max_scaler = preprocessing.MinMaxScaler()
+        df_scaled = pd.DataFrame(min_max_scaler.fit_transform(df), columns=df.columns)
+
+        print(df_scaled)
+
+        self.tfo = torch.tensor(df_scaled['tf0'].values.astype(np.float32).reshape((-1, 1)))
+        self.tso = torch.tensor(df_scaled['ts0'].values.astype(np.float32).reshape((-1, 1)))
+        self.t = torch.tensor(df_scaled['t'].values.astype(np.float32).reshape((-1, 1)))
 
     def get_predictors(self):
         """
