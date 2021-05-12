@@ -4,9 +4,8 @@ from torch import optim
 from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
 import itertools
-from pipeline.network import Network1, init_xavier, fit_custom
 from sklearn.model_selection import KFold
-from pipeline.datahandler import Datahandler
+from pipeline import Datahandler, Network1, init_xavier, fit_custom
 import os
 
 
