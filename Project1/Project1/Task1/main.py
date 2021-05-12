@@ -1,26 +1,29 @@
-from Network1 import Network1, fit, init_xavier
-from Datahandler import Datahandler
 import torch
-import torch.optim as optim
-import torch.utils
-import torch.utils.data
+import numpy as np
+from torch import optim
 from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
-import numpy as np
 import itertools
+from Network1 import Network1, init_xavier, fit_custom
+from sklearn.model_selection import KFold
+from Datahandler import Datahandler
 
 
-# Define the exact solution
-def exact_solution(x):
-    return torch.sin(x)
+def run_configuration(conf_dict, x, y, meta, k_folds=5):
+    """
+    run a k-fold cross validation with a given set of parameters
+    :param conf_dict: contains the parameters for the network and the training
+    :param x: predictors
+    :param y: targets
+    :param meta: dictionary with total number of configurations to run and the current configuration
+    :param k_folds: number of folds for cross validation
+    :return: training loss and validation loss
+    Adapted from skeleton code from Deep Learning for Scientific Computing lecture @ ETHZ in FS2021
+    """
 
-
-def run_configuration(conf_dict, x, y):
     # Set random seed for reproducibility
     torch.manual_seed(42)
     np.random.seed(42)
-
-    print(conf_dict)
 
     # Get the confgiuration to test
     opt_type = conf_dict["optimizer"]
@@ -32,129 +35,173 @@ def run_configuration(conf_dict, x, y):
     retrain = conf_dict["init_weight_seed"]
     batch_size = conf_dict["batch_size"]
 
-    validation_size = int(20 * x.shape[0] / 100)
-    training_size = x.shape[0] - validation_size
-    x_train = x[:training_size, :]
-    y_train = y[:training_size, :]
-
-    x_val = x[training_size:, :]
-    y_val = y[training_size:, :]
-
-    training_set = DataLoader(torch.utils.data.TensorDataset(x_train, y_train), batch_size=batch_size, shuffle=True)
-
-    print(x.shape[1])
-    print(y.shape[1])
-
-    my_network = Network1(input_dimension=x.shape[1],
-                           output_dimension=y.shape[1],
-                           n_hidden_layers=n_hidden_layers,
-                           neurons=neurons,
-                           regularization_param=regularization_param,
-                           regularization_exp=regularization_exp)
+    model = Network1(input_dimension=1,
+                     output_dimension=1,
+                     n_hidden_layers=n_hidden_layers,
+                     neurons=neurons,
+                     regularization_param=regularization_param,
+                     regularization_exp=regularization_exp)
 
     # Xavier weight initialization
-    init_xavier(my_network, retrain)
 
     if opt_type == "ADAM":
-        optimizer_ = optim.Adam(my_network.parameters(), lr=0.001)
+        optimizer_ = optim.Adam(model.parameters(), lr=0.001)
     elif opt_type == "LBFGS":
-        optimizer_ = optim.LBFGS(my_network.parameters(), lr=0.1, max_iter=1, max_eval=50000, tolerance_change=1.0 * np.finfo(float).eps)
+        optimizer_ = optim.LBFGS(model.parameters(), lr=0.1, max_iter=1, max_eval=50000,
+                                 tolerance_change=1.0 * np.finfo(float).eps)
     else:
         raise ValueError("Optimizer not recognized")
 
-    history = fit(my_network, training_set, x_val, y_val, n_epochs, optimizer_, p=2, verbose=False)
+    kfold = KFold(n_splits=k_folds, shuffle=True)
+    # K-fold Cross Validation model evaluation
 
-    x_test = torch.linspace(0, 2 * np.pi, 10000).reshape(-1, 1)
-    y_test = exact_solution(x_test).reshape(-1, )
-    y_val = y_val.reshape(-1, )
-    y_train = y_train.reshape(-1, )
+    training_loss_total = 0.0
+    validation_loss_total = 0.0
 
-    y_test_pred = my_network(x_test).reshape(-1, )
-    y_val_pred = my_network(x_val).reshape(-1, )
-    y_train_pred = my_network(x_train).reshape(-1, )
+    meta['total_folds'] = k_folds
+    meta['current_fold'] = 0
 
-    # Compute the relative validation error
-    relative_error_train = torch.mean((y_train_pred - y_train) ** 2) / torch.mean(y_train ** 2)
-    print("Relative Training Error: ", relative_error_train.detach().numpy() ** 0.5 * 100, "%")
+    for fold, (train_ids, test_ids) in enumerate(kfold.split(x)):
 
-    # Compute the relative validation error
-    relative_error_val = torch.mean((y_val_pred - y_val) ** 2) / torch.mean(y_val ** 2)
-    print("Relative Validation Error: ", relative_error_val.detach().numpy() ** 0.5 * 100, "%")
+        meta['current_fold'] = fold
 
-    # Compute the relative L2 error norm (generalization error)
-    relative_error_test = torch.mean((y_test_pred - y_test) ** 2) / torch.mean(y_test ** 2)
-    print("Relative Testing Error: ", relative_error_test.detach().numpy() ** 0.5 * 100, "%")
+        # Sample elements randomly from a given list of ids, no replacement.
+        train_subsampler = torch.utils.data.SubsetRandomSampler(train_ids)
+        test_subsampler = torch.utils.data.SubsetRandomSampler(test_ids)
 
-    return relative_error_train.item(), relative_error_val.item(), relative_error_test.item()
+        # Define data loaders for training and testing data in this fold
+        training_set = DataLoader(torch.utils.data.TensorDataset(x, y),
+                                  batch_size=batch_size,
+                                  sampler=train_subsampler)
+
+        validation_set = DataLoader(torch.utils.data.TensorDataset(x, y),
+                                    batch_size=batch_size,
+                                    sampler=test_subsampler)
+
+        init_xavier(model, retrain)
+
+        fold_training_loss, fold_validation_loss = fit_custom(model, training_set, validation_set,
+                                                              n_epochs, optimizer_, meta, p=2, output_step=n_epochs/10)
+        training_loss_total += fold_training_loss
+        validation_loss_total += fold_validation_loss
+
+        print(f"Fold {fold} Training Loss: {fold_training_loss/ k_folds}")
+        print(f"Fold {fold} Validation Loss: {fold_validation_loss/ k_folds}")
+
+    training_loss_total = training_loss_total/ k_folds
+    validation_loss_total = validation_loss_total/ k_folds
+
+    print('K-Fold Crossvalidation')
+    print('-------------------------------')
+    print('training loss')
+    print(training_loss_total)
+    print('validation loss')
+    print(validation_loss_total)
+    # device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+    # TODO: Write parameters and training + validation loss to file. Name file with date and time (dd:mm:yy_hh:mm:ss)
+
+    return training_loss_total, validation_loss_total
 
 
-# Random Seed for dataset generation
-sampling_seed = 78
-torch.manual_seed(sampling_seed)
+if __name__ == "__main__":
 
-# Number of training samples
-n_samples = 100
-# Noise level
-sigma = 0.0
+    datahandler = Datahandler('TrainingData.txt')
 
-x = 2 * np.pi * torch.rand((n_samples, 1))
-y = exact_solution(x) + sigma * torch.randn(x.shape)
-
-network_properties = {
-    "hidden_layers": [2, 4],
-    "neurons": [5, 20],
-    "regularization_exp": [2],
-    "regularization_param": [0, 1e-4],
-    "batch_size": [n_samples],
-    "epochs": [1000],
-    "optimizer": ["LBFGS"],
-    "init_weight_seed": [567, 34, 134]
-}
-
-settings = list(itertools.product(*network_properties.values()))
-
-i = 0
-
-train_err_conf = list()
-val_err_conf = list()
-test_err_conf = list()
-for set_num, setup in enumerate(settings):
-    print("###################################", set_num, "###################################")
-    setup_properties = {
-        "hidden_layers": setup[0],
-        "neurons": setup[1],
-        "regularization_exp": setup[2],
-        "regularization_param": setup[3],
-        "batch_size": setup[4],
-        "epochs": setup[5],
-        "optimizer": setup[6],
-        "init_weight_seed": setup[7]
+    network_properties = {
+        "hidden_layers": [2, 8, 16],
+        "neurons": [5, 20, 40],
+        "regularization_exp": [2],
+        "regularization_param": [0],
+        "batch_size": [20],
+        "epochs": [1000],
+        "optimizer": ["LBFGS"],
+        "init_weight_seed": [567]
     }
 
-    relative_error_train_, relative_error_val_, relative_error_test_ = run_configuration(setup_properties, x, y)
-    train_err_conf.append(relative_error_train_)
-    val_err_conf.append(relative_error_val_)
-    test_err_conf.append(relative_error_test_)
+    settings = list(itertools.product(*network_properties.values()))
 
-print(train_err_conf, val_err_conf, test_err_conf)
+    train_err_conf = list()
+    val_err_conf = list()
 
-train_err_conf = np.array(train_err_conf)
-val_err_conf = np.array(val_err_conf)
-test_err_conf = np.array(test_err_conf)
+    number_of_conf = len(settings)
 
-plt.figure(figsize=(16, 8))
-plt.grid(True, which="both", ls=":")
-plt.scatter(np.log10(train_err_conf), np.log10(test_err_conf), marker="*", label="Training Error")
-plt.scatter(np.log10(val_err_conf), np.log10(test_err_conf), label="Validation Error")
-plt.xlabel("Selection Criterion")
-plt.ylabel("Generalization Error")
-plt.title(r'Validation - Training Error VS Generalization error ($\sigma=0.0$)')
-plt.legend()
-plt.savefig("sigma.png", dpi=400)
-plt.show()
+    meta = {'total_confs': number_of_conf,
+            'current_conf': 0}
 
+    for set_num, setup in enumerate(settings):
 
+        setup_properties = {
+            "hidden_layers": setup[0],
+            "neurons": setup[1],
+            "regularization_exp": setup[2],
+            "regularization_param": setup[3],
+            "batch_size": setup[4],
+            "epochs": setup[5],
+            "optimizer": setup[6],
+            "init_weight_seed": setup[7]
+        }
 
+        meta['current_conf'] = set_num
 
+        print(setup_properties)
+        relative_error_train_, relative_error_val_ = run_configuration(setup_properties,
+                                                                       datahandler.get_predictors(),
+                                                                       datahandler.get_targets('tf0'),
+                                                                       meta)
 
+        train_err_conf.append(relative_error_train_)
+        val_err_conf.append(relative_error_val_)
 
+    print(train_err_conf, val_err_conf)
+
+    # TODO: get best validation error and store in best temp file
+    # TODO: compare best validation error with overall best validation error and update file if needed
+    # TODO: save best model
+    # TODO: create predictions from Testing Data and create final file
+
+    # TODO: create a class to handle IO
+    """
+    - initial setup to create all files
+    - update function for loss_running_best_model and loss_best_model
+        update_best_running(training_loss, validation_loss, model)
+    - update function to compare and evaluate best model overall
+        update_best_model()
+        read both loss_running_best_model.txt and loss_best_model
+        compare them
+        update if necessary
+    - load stored model
+    - save model
+    
+    """
+
+    """
+    dir: files
+    
+    run_dd:mm:yy_hh:mm:ss.txt:
+            file for run_conf to write down all parameters and corresponding losses
+    loss_running_best_model.txt
+        file for run_conf to write down the current best model(param + losses). 
+        Can be evaluated during training
+    running_best_model.pt
+        file to store the best running model
+    loss_best_model.txt
+        file for main to write down the best model overall (param + losses). 
+        Need to compare this file to the loss_running_best_model.txt and update if needed
+    best_model.pt
+        file to store the best overall model
+    """
+
+    train_err_conf = np.array(train_err_conf)
+    val_err_conf = np.array(val_err_conf)
+
+    configuration_number = np.linspace(start=0.0, stop=len(train_err_conf), num=len(train_err_conf), endpoint=False)
+
+    print(configuration_number)
+
+    plt.plot(configuration_number, train_err_conf, label="Training Error")
+    plt.plot(configuration_number, val_err_conf, label="Validation Error")
+    plt.legend()
+    plt.xlabel("Configuration")
+    plt.ylabel("Loss")
+    # plt.show()
