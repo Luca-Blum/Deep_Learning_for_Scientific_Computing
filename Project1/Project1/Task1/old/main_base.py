@@ -1,4 +1,4 @@
-from pipeline.Network1 import Network1, fit, init_xavier
+from pipeline import Network1, fit, init_xavier
 import torch
 import torch.optim as optim
 import torch.utils
@@ -42,11 +42,11 @@ def run_configuration(conf_dict, x, y):
     training_set = DataLoader(torch.utils.data.TensorDataset(x_train, y_train), batch_size=batch_size, shuffle=True)
 
     my_network = Network1(input_dimension=x.shape[1],
-                           output_dimension=y.shape[1],
-                           n_hidden_layers=n_hidden_layers,
-                           neurons=neurons,
-                           regularization_param=regularization_param,
-                           regularization_exp=regularization_exp)
+                          output_dimension=y.shape[1],
+                          n_hidden_layers=n_hidden_layers,
+                          neurons=neurons,
+                          regularization_param=regularization_param,
+                          regularization_exp=regularization_exp)
 
     # Xavier weight initialization
     init_xavier(my_network, retrain)
@@ -54,7 +54,8 @@ def run_configuration(conf_dict, x, y):
     if opt_type == "ADAM":
         optimizer_ = optim.Adam(my_network.parameters(), lr=0.001)
     elif opt_type == "LBFGS":
-        optimizer_ = optim.LBFGS(my_network.parameters(), lr=0.1, max_iter=1, max_eval=50000, tolerance_change=1.0 * np.finfo(float).eps)
+        optimizer_ = optim.LBFGS(my_network.parameters(), lr=0.1, max_iter=1, max_eval=50000,
+                                 tolerance_change=1.0 * np.finfo(float).eps)
     else:
         raise ValueError("Optimizer not recognized")
 
@@ -148,9 +149,3 @@ plt.title(r'Validation - Training Error VS Generalization error ($\sigma=0.0$)')
 plt.legend()
 plt.savefig("sigma.png", dpi=400)
 plt.show()
-
-
-
-
-
-
