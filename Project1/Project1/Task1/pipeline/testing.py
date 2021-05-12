@@ -4,6 +4,8 @@ import numpy as np
 from sklearn import preprocessing
 
 
+# TODO: create predictions from Testing Data and create final file
+
 class Testing:
     def __init__(self, txt_file: str, model: torch.nn.Module):
         """
@@ -25,7 +27,5 @@ class Testing:
     def create_submission(self):
         """
         Creates prediciton for Testing data with trained model and writes result to text file
-        :param model: trained pytorch neural network
         """
         predictions = self.create_predictions()
-
