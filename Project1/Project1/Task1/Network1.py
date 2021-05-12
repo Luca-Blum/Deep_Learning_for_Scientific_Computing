@@ -155,10 +155,12 @@ def fit_custom(model, training_set, validation_set, num_epochs, optimizer, meta,
                 loss = loss_u + regularization_param * loss_reg
                 loss.backward()
                 # Compute average training loss over batches for the current epoch
-                running_loss[0] += loss.item() / len(training_set)
+                running_loss[0] += loss.item() * x_train_.size(0)
                 return loss
 
             optimizer.step(closure=closure)
+
+        running_loss[0] /= len(training_set.sampler)
 
         if output_step != 0 and epoch != 0 and epoch % output_step == 0:
             print(" LOSS: ", running_loss[0])
@@ -166,19 +168,23 @@ def fit_custom(model, training_set, validation_set, num_epochs, optimizer, meta,
         history[0].append(running_loss[0])
 
     # Evaluation
-    with torch.no_grad():
+    model.eval()
 
-        # Iterate over the test data and generate predictions
-        for i, data in enumerate(validation_set, 0):
-            # Get inputs
-            inputs, targets = data
+    validation_loss = 0
 
-            # Generate outputs
-            prediction = model(inputs)
+    # Iterate over the test data and generate predictions
+    for i, data in enumerate(validation_set, 0):
+        # Get inputs
+        inputs, targets = data
 
-            validation_loss = torch.mean((prediction.reshape(-1, )
-                                          - targets.reshape(-1, )) ** p).item() / len(validation_set)
+        # Generate outputs
+        prediction = model(inputs)
 
+        validation_loss += torch.mean((prediction.reshape(-1, )
+                                      - targets.reshape(-1, )) ** p).item() * inputs.size(0)
+
+    validation_loss /= len(validation_set.sampler)
+    model.train()
     '''
     print('Fold Training Loss: ', running_loss[0])
     print('Fold Validation Loss', validation_loss)
