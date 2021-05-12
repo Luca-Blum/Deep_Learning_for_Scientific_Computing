@@ -88,8 +88,8 @@ def run_configuration(conf_dict, x, y, meta, k_folds=5):
         print(f"Fold {fold} Training Loss: {fold_training_loss/ k_folds}")
         print(f"Fold {fold} Validation Loss: {fold_validation_loss/ k_folds}")
 
-    training_loss_total = training_loss_total/ k_folds
-    validation_loss_total = validation_loss_total/ k_folds
+    training_loss_total = training_loss_total / k_folds
+    validation_loss_total = validation_loss_total / k_folds
 
     print('K-Fold Crossvalidation')
     print('-------------------------------')
@@ -109,12 +109,12 @@ if __name__ == "__main__":
     datahandler = Datahandler('TrainingData.txt')
 
     network_properties = {
-        "hidden_layers": [2, 8, 16],
-        "neurons": [5, 20, 40],
+        "hidden_layers": [16],
+        "neurons": [40],
         "regularization_exp": [2],
         "regularization_param": [0],
         "batch_size": [20],
-        "epochs": [1000],
+        "epochs": [100],
         "optimizer": ["LBFGS"],
         "init_weight_seed": [567]
     }
@@ -155,12 +155,12 @@ if __name__ == "__main__":
 
     print(train_err_conf, val_err_conf)
 
-    # TODO: get best validation error and store in best temp file
-    # TODO: compare best validation error with overall best validation error and update file if needed
-    # TODO: save best model
     # TODO: create predictions from Testing Data and create final file
 
     # TODO: create a class to handle IO
+    # TODO: get best validation error and store in best temp file
+    # TODO: compare best validation error with overall best validation error and update file if needed
+    # TODO: save best model
     """
     - initial setup to create all files
     - update function for loss_running_best_model and loss_best_model
