@@ -58,7 +58,7 @@ def run_configuration(conf_dict, x, y):
     else:
         raise ValueError("Optimizer not recognized")
 
-    history = fit(my_network, training_set, x_val, y_val, n_epochs, optimizer_, p=2, verbose=False)
+    history = fit(my_network, training_set, x_val, y_val, n_epochs, optimizer_, p=2, verbose=True)
 
     x_test = torch.linspace(0, 2 * np.pi, 10000).reshape(-1, 1)
     y_test = exact_solution(x_test).reshape(-1, )
@@ -95,8 +95,6 @@ sigma = 0.0
 
 x = 2 * np.pi * torch.rand((n_samples, 1))
 y = exact_solution(x) + sigma * torch.randn(x.shape)
-
-print(x,y)
 
 network_properties = {
     "hidden_layers": [2, 4],
