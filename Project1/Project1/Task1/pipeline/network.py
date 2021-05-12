@@ -167,35 +167,42 @@ def fit_custom(model, training_set, validation_set, num_epochs, optimizer, meta,
 
         history[0].append(running_loss[0])
 
-    # Evaluation
-    model.eval()
+        # Evaluation
+        model.eval()
 
-    validation_loss = 0
+        validation_loss = 0
 
-    # Iterate over the test data and generate predictions
-    for i, data in enumerate(validation_set, 0):
-        # Get inputs
-        inputs, targets = data
+        # Iterate over the test data and generate predictions
+        for i, data in enumerate(validation_set, 0):
+            # Get inputs
+            inputs, targets = data
 
-        # Generate outputs
-        prediction = model(inputs)
+            # Generate outputs
+            prediction = model(inputs)
 
-        validation_loss += torch.mean((prediction.reshape(-1, )
-                                      - targets.reshape(-1, )) ** p).item() * inputs.size(0)
+            validation_loss += torch.mean((prediction.reshape(-1, )
+                                          - targets.reshape(-1, )) ** p).item() * inputs.size(0)
 
-    validation_loss /= len(validation_set.sampler)
-    model.train()
+        validation_loss /= len(validation_set.sampler)
+
+        history[1].append(validation_loss)
+
+        model.train()
+
     '''
-    print('Fold Training Loss: ', running_loss[0])
-    print('Fold Validation Loss', validation_loss)
+    # Plot trainings process
+    
+    print('Fold Training Loss: ', history[0])
+    print('Fold Validation Loss', history[1])
 
     configuration_number = np.linspace(start=0.0, stop=len(history[0]), num=len(history[0]), endpoint=False)
 
-    plt.plot(configuration_number, history[0], label="Training Error")
+    plt.plot(configuration_number[1:], history[0][1:], label="Training Error")
+    plt.plot(configuration_number[1:], history[1][1:], label="Validation Error")
     plt.legend()
     plt.xlabel("Configuration")
     plt.ylabel("Loss")
-    # plt.show()
+    plt.show()
     '''
 
     return running_loss[0], validation_loss

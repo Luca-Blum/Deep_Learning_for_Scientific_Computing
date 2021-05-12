@@ -12,12 +12,8 @@ class Datahandler:
         """
         df = pd.read_csv(txt_file)
 
-        print(df)
-
         min_max_scaler = preprocessing.MinMaxScaler()
         df_scaled = pd.DataFrame(min_max_scaler.fit_transform(df), columns=df.columns)
-
-        print(df_scaled)
 
         self.tfo = torch.tensor(df_scaled['tf0'].values.astype(np.float32).reshape((-1, 1)))
         self.tso = torch.tensor(df_scaled['ts0'].values.astype(np.float32).reshape((-1, 1)))

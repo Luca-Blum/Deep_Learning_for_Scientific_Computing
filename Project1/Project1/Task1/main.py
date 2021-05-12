@@ -4,9 +4,10 @@ from torch import optim
 from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
 import itertools
-from Network1 import Network1, init_xavier, fit_custom
+from pipeline.network import Network1, init_xavier, fit_custom
 from sklearn.model_selection import KFold
-from Datahandler import Datahandler
+from pipeline.datahandler import Datahandler
+import os
 
 
 def run_configuration(conf_dict, x, y, meta, k_folds=5):
@@ -85,8 +86,8 @@ def run_configuration(conf_dict, x, y, meta, k_folds=5):
         training_loss_total += fold_training_loss
         validation_loss_total += fold_validation_loss
 
-        print(f"Fold {fold} Training Loss: {fold_training_loss/ k_folds}")
-        print(f"Fold {fold} Validation Loss: {fold_validation_loss/ k_folds}")
+        print(f"Fold {fold} Training Loss: {fold_training_loss}")
+        print(f"Fold {fold} Validation Loss: {fold_validation_loss}")
 
     training_loss_total = training_loss_total / k_folds
     validation_loss_total = validation_loss_total / k_folds
@@ -106,7 +107,10 @@ def run_configuration(conf_dict, x, y, meta, k_folds=5):
 
 if __name__ == "__main__":
 
-    datahandler = Datahandler('TrainingData.txt')
+    dirname = os.path.dirname(__file__)
+    filename = os.path.join(dirname, 'data/TrainingData.txt')
+
+    datahandler = Datahandler(filename)
 
     network_properties = {
         "hidden_layers": [16],
@@ -156,6 +160,8 @@ if __name__ == "__main__":
     print(train_err_conf, val_err_conf)
 
     # TODO: create predictions from Testing Data and create final file
+
+    # TODO: create README
 
     # TODO: create a class to handle IO
     # TODO: get best validation error and store in best temp file

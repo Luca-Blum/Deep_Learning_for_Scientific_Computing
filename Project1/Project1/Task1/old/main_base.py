@@ -1,4 +1,4 @@
-from Network1 import Network1, fit, init_xavier
+from pipeline.Network1 import Network1, fit, init_xavier
 import torch
 import torch.optim as optim
 import torch.utils
