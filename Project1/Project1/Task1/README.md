@@ -12,6 +12,9 @@ Build the whole neural network pipeline from scratch:
 - add progress bar to get a better overview of training process
 - save and load model
 - IO to keep track of the parameters and losses of each model
+- create package for pipeline
+- add LICENSE
+- create environment.yml 
 
 ## Best Model
 ...
