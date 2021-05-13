@@ -5,17 +5,18 @@ from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
 import itertools
 from sklearn.model_selection import KFold
-from pipeline import Datahandler, Network1, init_xavier, fit_custom
+from pipeline import Datahandler, Network1, init_xavier, fit_custom, IOHandler
 import os
 
 
-def run_configuration(conf_dict, x, y, meta, k_folds=5):
+def run_configuration(conf_dict, x, y, meta_info, io_handler, k_folds=5):
     """
     run a k-fold cross validation with a given set of parameters
     :param conf_dict: contains the parameters for the network and the training
     :param x: predictors
     :param y: targets
-    :param meta: dictionary with total number of configurations to run and the current configuration
+    :param meta_info: dictionary with total number of configurations to run and the current configuration
+    :param io_handler: keeps track of best model during training
     :param k_folds: number of folds for cross validation
     :return: training loss and validation loss
     Adapted from skeleton code from Deep Learning for Scientific Computing lecture @ ETHZ in FS2021
@@ -81,7 +82,8 @@ def run_configuration(conf_dict, x, y, meta, k_folds=5):
         init_xavier(model, retrain)
 
         fold_training_loss, fold_validation_loss = fit_custom(model, training_set, validation_set,
-                                                              n_epochs, optimizer_, meta, p=2, output_step=n_epochs/10)
+                                                              n_epochs, optimizer_, meta_info, p=2,
+                                                              output_step=n_epochs/10)
         training_loss_total += fold_training_loss
         validation_loss_total += fold_validation_loss
 
@@ -99,7 +101,7 @@ def run_configuration(conf_dict, x, y, meta, k_folds=5):
     print(validation_loss_total)
     # device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-    # TODO: Write parameters and training + validation loss to file. Name file with date and time (dd:mm:yy_hh:mm:ss)
+    io_handler.write_running(training_loss_total, validation_loss_total, conf_dict, model)
 
     return training_loss_total, validation_loss_total
 
@@ -111,8 +113,10 @@ if __name__ == "__main__":
 
     datahandler = Datahandler(filename)
 
+    iohandler = IOHandler()
+
     network_properties = {
-        "hidden_layers": [16],
+        "hidden_layers": [1, 16],
         "neurons": [40],
         "regularization_exp": [2],
         "regularization_param": [0],
@@ -151,19 +155,19 @@ if __name__ == "__main__":
         relative_error_train_, relative_error_val_ = run_configuration(setup_properties,
                                                                        datahandler.get_predictors(),
                                                                        datahandler.get_targets('tf0'),
-                                                                       meta)
+                                                                       meta, iohandler)
 
         train_err_conf.append(relative_error_train_)
         val_err_conf.append(relative_error_val_)
 
     print(train_err_conf, val_err_conf)
 
+    iohandler.finalize()
+
     train_err_conf = np.array(train_err_conf)
     val_err_conf = np.array(val_err_conf)
 
     configuration_number = np.linspace(start=0.0, stop=len(train_err_conf), num=len(train_err_conf), endpoint=False)
-
-    print(configuration_number)
 
     plt.plot(configuration_number, train_err_conf, label="Training Error")
     plt.plot(configuration_number, val_err_conf, label="Validation Error")
