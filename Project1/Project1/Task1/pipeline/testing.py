@@ -9,7 +9,7 @@ from sklearn import preprocessing
 class Testing:
     def __init__(self, txt_file: str, model: torch.nn.Module):
         """
-        Handles the testing dataset to create the final submisssion file
+        Handles the testing dataset to create the final submission file
         :param txt_file(str): Path to the txt file with the data
         :param model: trained pytorch neural network
         """
@@ -26,6 +26,6 @@ class Testing:
 
     def create_submission(self):
         """
-        Creates prediciton for Testing data with trained model and writes result to text file
+        Creates prediction for Testing data with trained model and writes result to text file
         """
         predictions = self.create_predictions()

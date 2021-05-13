@@ -13,7 +13,7 @@ class Network1(nn.Module):
         """
         Creating a pytorch dense neural network
         :param input_dimension: dimension of the predictors
-        :param output_dimension: dimensiont of the target
+        :param output_dimension: dimension of the target
         :param n_hidden_layers: number of hidden layers
         :param neurons: number of neurons in each hidden layer
         :param regularization_param: strength of regularization

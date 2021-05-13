@@ -2,10 +2,10 @@
 
 ## Purpose
 This repository is used for the development of the projects for the deep learning for scientific computing course 
-of Professor S. Mishra lectured at ETH Zürich during the spring semester 2021.
+of Professor S. Mishra lectured at ETH Zurich during the spring semester 2021.
 
 ## Usage
-**Load conda virtual enviroment:**  
+**Load conda virtual environment:**  
 conda env create -f environment.yml  
 conda activate pytorch  
 

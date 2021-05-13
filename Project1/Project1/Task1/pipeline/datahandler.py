@@ -27,7 +27,7 @@ class Datahandler:
 
     def get_targets(self, target_type: str):
         """
-        :param target_type: specify target varialbe ['tf0', 'ts0']
+        :param target_type: specify target variable ['tf0', 'ts0']
         :return: tensor with either target variable 'tf0' or 'ts0'
         """
         if target_type == 'ts0':
