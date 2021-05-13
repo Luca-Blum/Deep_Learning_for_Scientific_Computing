@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import itertools
 from sklearn.model_selection import KFold
 from pipeline import Datahandler, Network1, init_xavier, fit_custom, IOHandler
-import os
+from os import path
 
 
 def run_configuration(conf_dict, x, y, meta_info, io_handler, k_folds=5):
@@ -46,7 +46,7 @@ def run_configuration(conf_dict, x, y, meta_info, io_handler, k_folds=5):
     # Xavier weight initialization
 
     if opt_type == "ADAM":
-        optimizer_ = optim.Adam(model.parameters(), lr=0.001)
+        optimizer_ = optim.Adam(model.parameters(), lr=0.01)
     elif opt_type == "LBFGS":
         optimizer_ = optim.LBFGS(model.parameters(), lr=0.1, max_iter=1, max_eval=50000,
                                  tolerance_change=1.0 * np.finfo(float).eps)
@@ -59,12 +59,12 @@ def run_configuration(conf_dict, x, y, meta_info, io_handler, k_folds=5):
     training_loss_total = 0.0
     validation_loss_total = 0.0
 
-    meta['total_folds'] = k_folds
-    meta['current_fold'] = 0
+    meta_info['total_folds'] = k_folds
+    meta_info['current_fold'] = 0
 
-    for fold, (train_ids, test_ids) in enumerate(kfold.split(x)):
+    for fold, (train_ids, test_ids) in enumerate(kfold.split(x, y)):
 
-        meta['current_fold'] = fold
+        meta_info['current_fold'] = fold
 
         # Sample elements randomly from a given list of ids, no replacement.
         train_subsampler = torch.utils.data.SubsetRandomSampler(train_ids)
@@ -83,22 +83,20 @@ def run_configuration(conf_dict, x, y, meta_info, io_handler, k_folds=5):
 
         fold_training_loss, fold_validation_loss = fit_custom(model, training_set, validation_set,
                                                               n_epochs, optimizer_, meta_info, p=2,
-                                                              output_step=n_epochs/10)
+                                                              output_step=1)
         training_loss_total += fold_training_loss
         validation_loss_total += fold_validation_loss
 
-        print(f"Fold {fold} Training Loss: {fold_training_loss}")
-        print(f"Fold {fold} Validation Loss: {fold_validation_loss}")
+        # print(f"Fold {fold + 1} Training Loss: {fold_training_loss}")
+        # print(f"Fold {fold + 1} Validation Loss: {fold_validation_loss}")
 
     training_loss_total = training_loss_total / k_folds
     validation_loss_total = validation_loss_total / k_folds
 
     print('K-Fold Crossvalidation')
     print('-------------------------------')
-    print('training loss')
-    print(training_loss_total)
-    print('validation loss')
-    print(validation_loss_total)
+    print('training loss: \t\t', training_loss_total)
+    print('validation loss: \t', validation_loss_total, '\n')
     # device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     io_handler.write_running(training_loss_total, validation_loss_total, conf_dict, model)
@@ -106,24 +104,17 @@ def run_configuration(conf_dict, x, y, meta_info, io_handler, k_folds=5):
     return training_loss_total, validation_loss_total
 
 
-if __name__ == "__main__":
-
-    dirname = os.path.dirname(__file__)
-    filename = os.path.join(dirname, 'data/TrainingData.txt')
-
-    datahandler = Datahandler(filename)
-
-    iohandler = IOHandler()
+def train_predictor(iohandler):
 
     network_properties = {
-        "hidden_layers": [1, 16],
-        "neurons": [40],
+        "hidden_layers": [32],
+        "neurons": [64],
         "regularization_exp": [2],
-        "regularization_param": [0],
-        "batch_size": [20],
-        "epochs": [100],
-        "optimizer": ["LBFGS"],
-        "init_weight_seed": [567]
+        "regularization_param": [1e-4],
+        "batch_size": [100],
+        "epochs": [2000],
+        "optimizer": ["ADAM"],
+        "init_weight_seed": [7]
     }
 
     settings = list(itertools.product(*network_properties.values()))
@@ -137,7 +128,6 @@ if __name__ == "__main__":
             'current_conf': 0}
 
     for set_num, setup in enumerate(settings):
-
         setup_properties = {
             "hidden_layers": setup[0],
             "neurons": setup[1],
@@ -154,13 +144,13 @@ if __name__ == "__main__":
         print(setup_properties)
         relative_error_train_, relative_error_val_ = run_configuration(setup_properties,
                                                                        datahandler.get_predictors(),
-                                                                       datahandler.get_targets('tf0'),
+                                                                       datahandler.get_targets(iohandler.get_name()),
                                                                        meta, iohandler)
 
         train_err_conf.append(relative_error_train_)
         val_err_conf.append(relative_error_val_)
 
-    print(train_err_conf, val_err_conf)
+    # print(train_err_conf, val_err_conf)
 
     iohandler.finalize()
 
@@ -175,3 +165,20 @@ if __name__ == "__main__":
     plt.xlabel("Configuration")
     plt.ylabel("Loss")
     # plt.show()
+
+
+if __name__ == "__main__":
+
+    dirname = path.dirname(__file__)
+    training_filename = path.join(dirname, 'data/TrainingData.txt')
+    testing_filename = path.join(dirname, 'data/TestingData.txt')
+
+    datahandler = Datahandler(training_filename, testing_filename)
+
+    iohandler_tf0 = IOHandler('tf0')
+    iohandler_ts0 = IOHandler('ts0')
+
+    train_predictor(iohandler_tf0)
+    train_predictor(iohandler_ts0)
+
+    datahandler.create_submission(iohandler_tf0.load_best_model(), iohandler_ts0.load_best_model())

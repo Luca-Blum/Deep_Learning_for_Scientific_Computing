@@ -2,28 +2,55 @@ import pandas as pd
 import torch
 import numpy as np
 from sklearn import preprocessing
+from pipeline import predict, IOHandler
+from pathlib import Path
+from os import path
+import matplotlib.pyplot as plt
 
 
 class Datahandler:
-    def __init__(self, txt_file: str):
+    def __init__(self, training_txt_file: str, testing_txt_file: str = None):
         """
-        :param txt_file(str): Path to the txt file with the data
+        :param training_txt_file(str): Path to the training txt file with the data
+        :param testing_txt_file(str): Path to the testing txt file with the data
         :param type(str): tf0 or ts0
         """
-        df = pd.read_csv(txt_file)
+        training_df = pd.read_csv(training_txt_file)
 
-        min_max_scaler = preprocessing.MinMaxScaler()
-        df_scaled = pd.DataFrame(min_max_scaler.fit_transform(df), columns=df.columns)
+        self.min_max_scaler = preprocessing.MinMaxScaler()
 
-        self.tfo = torch.tensor(df_scaled['tf0'].values.astype(np.float32).reshape((-1, 1)))
-        self.tso = torch.tensor(df_scaled['ts0'].values.astype(np.float32).reshape((-1, 1)))
-        self.t = torch.tensor(df_scaled['t'].values.astype(np.float32).reshape((-1, 1)))
+        training_df[['t']] = self.min_max_scaler.fit_transform(training_df[['t']])
+
+        self.tfo_training = torch.tensor(training_df['tf0'].values.astype(np.float32).reshape((-1, 1)))
+        self.tso_training = torch.tensor(training_df['ts0'].values.astype(np.float32).reshape((-1, 1)))
+        self.t_training = torch.tensor(training_df['t'].values.astype(np.float32).reshape((-1, 1)))
+
+        self.output_path = None
+
+        if testing_txt_file is not None:
+            testing_df = pd.read_csv(testing_txt_file)
+
+            self.t_testing_unscaled = testing_df[['t']].values
+            self.submission = pd.DataFrame(self.t_testing_unscaled, columns=['t'])
+
+            testing_df[['t']] = self.min_max_scaler.transform(testing_df[['t']])
+
+            self.t_testing = torch.tensor(testing_df['t'].values.astype(np.float32).reshape((-1, 1)))
+
+            basepath = path.dirname(__file__)
+
+            output_dir_path = path.abspath(path.join(basepath, "..", "submission"))
+            self.output_path = path.join(output_dir_path, "submission.txt")
+
+            # Create directory for submission
+            if not Path(output_dir_path).is_dir():
+                Path(output_dir_path).mkdir(parents=True, exist_ok=True)
 
     def get_predictors(self):
         """
         :return: tensor with predictors
         """
-        return self.t
+        return self.t_training
 
     def get_targets(self, target_type: str):
         """
@@ -31,6 +58,70 @@ class Datahandler:
         :return: tensor with either target variable 'tf0' or 'ts0'
         """
         if target_type == 'ts0':
-            return self.tso
+            return self.tso_training
         else:
-            return self.tfo
+            return self.tfo_training
+
+    def create_submission(self, model_tf0, model_ts0):
+
+        if self.output_path is None:
+            raise ValueError("testing file was not specified during initialization")
+
+        """
+        Creates prediction for Testing data with trained model and writes result to text file
+        """
+
+        predictions_tf0 = predict(model_tf0, self.t_testing)
+        predictions_ts0 = predict(model_ts0, self.t_testing)
+
+        print(predictions_tf0)
+        print(predictions_ts0)
+
+        self.submission['tf0'] = predictions_tf0.detach().numpy()
+
+        self.submission['ts0'] = predictions_ts0.detach().numpy()
+
+        self.submission.to_csv(self.output_path, index=False)
+
+    def plot_data(self):
+        plt.plot(self.t_training, self.tfo_training, label="tf0")
+        plt.plot(self.t_training, self.tso_training, label="ts0")
+        plt.legend()
+        plt.xlabel("x")
+        plt.ylabel("y")
+        plt.show()
+
+    def plot_submission(self):
+        plt.plot(self.t_testing, self.submission['tf0'].values, label="testing tf0")
+        plt.plot(self.t_testing, self.submission['ts0'].values, label="testing ts0")
+        plt.legend()
+        plt.xlabel("x")
+        plt.ylabel("y")
+        plt.show()
+
+    def plot_all(self):
+        plt.plot(self.t_training, self.tfo_training, label="tf0")
+        plt.plot(self.t_training, self.tso_training, label="ts0")
+        plt.plot(self.t_testing, self.submission['tf0'].values, label="testing tf0")
+        plt.plot(self.t_testing, self.submission['ts0'].values, label="testing ts0")
+        plt.legend()
+        plt.xlabel("x")
+        plt.ylabel("y")
+        plt.show()
+
+
+if __name__ == "__main__":
+
+    iohandler_tf0 = IOHandler('tf0')
+    iohandler_ts0 = IOHandler('ts0')
+
+    dirname = path.dirname(__file__)
+
+    testing_filename = path.abspath(path.join(dirname, "..", "data", "TestingData.txt"))
+    training_filename = path.abspath(path.join(dirname, "..", "data", "TrainingData.txt"))
+
+    datahandler = Datahandler(training_filename, testing_filename)
+
+    datahandler.create_submission(iohandler_tf0.load_best_model(), iohandler_ts0.load_best_model())
+
+    datahandler.plot_all()

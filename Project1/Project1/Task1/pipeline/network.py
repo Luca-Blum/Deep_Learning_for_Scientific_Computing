@@ -35,6 +35,8 @@ class Network1(nn.Module):
         #
         self.regularization_exp = regularization_exp
 
+        self.dropout = nn.Dropout(0.2)
+
         self.input_layer = nn.Linear(self.input_dimension, self.neurons)
         self.hidden_layers = nn.ModuleList([nn.Linear(self.neurons, self.neurons) for _ in range(n_hidden_layers)])
         self.output_layer = nn.Linear(self.neurons, self.output_dimension)
@@ -45,6 +47,7 @@ class Network1(nn.Module):
         x = self.activation(self.input_layer(x))
         for k, l in enumerate(self.hidden_layers):
             x = self.activation(l(x))
+            x = self.dropout(x)
         return self.output_layer(x)
 
 
@@ -62,10 +65,10 @@ def init_xavier(model, retrain_seed):
 
 
 def regularization(model, p):
-    reg_loss = 0
+    reg_loss = torch.tensor(0.)
     for name, param in model.named_parameters():
         if 'weight' in name:
-            reg_loss = reg_loss + torch.norm(param, p)
+            reg_loss += torch.norm(param, p)
     return reg_loss
 
 
@@ -139,7 +142,9 @@ def fit_custom(model, training_set, validation_set, num_epochs, optimizer, meta,
                   f"Folds: [{meta['current_fold']+1}/{meta['total_folds']}] " \
                   f"Epoch Progress: "
 
-    for epoch in tqdm(range(num_epochs), desc=description):
+    pbar = tqdm(range(num_epochs), desc=description)
+
+    for epoch in pbar:
 
         running_loss = list([0])
 
@@ -160,17 +165,12 @@ def fit_custom(model, training_set, validation_set, num_epochs, optimizer, meta,
 
             optimizer.step(closure=closure)
 
-        running_loss[0] /= len(training_set.sampler)
-
-        if output_step != 0 and epoch != 0 and epoch % output_step == 0:
-            print(" LOSS: ", running_loss[0])
-
-        history[0].append(running_loss[0])
+        history[0].append(running_loss[0] / len(training_set.sampler))
 
         # Evaluation
         model.eval()
 
-        validation_loss = 0
+        running_validation_loss = 0
 
         # Iterate over the test data and generate predictions
         for i, data in enumerate(validation_set, 0):
@@ -180,14 +180,15 @@ def fit_custom(model, training_set, validation_set, num_epochs, optimizer, meta,
             # Generate outputs
             prediction = model(inputs)
 
-            validation_loss += torch.mean((prediction.reshape(-1, )
-                                          - targets.reshape(-1, )) ** p).item() * inputs.size(0)
+            running_validation_loss += torch.mean((prediction.reshape(-1, )
+                                                   - targets.reshape(-1, )) ** p).item() * inputs.size(0)
 
-        validation_loss /= len(validation_set.sampler)
-
-        history[1].append(validation_loss)
+        history[1].append(running_validation_loss / len(validation_set.sampler))
 
         model.train()
+
+        if output_step != 0 and epoch % output_step == 0:
+            pbar.set_postfix({'Training loss': history[0][-1], 'Validation loss': history[1][-1]})
 
     '''
     # Plot trainings process
@@ -205,4 +206,15 @@ def fit_custom(model, training_set, validation_set, num_epochs, optimizer, meta,
     plt.show()
     '''
 
-    return running_loss[0], validation_loss
+    return history[0][-1], history[1][-1]
+
+
+def predict(model, testing_set):
+
+    model.eval()
+
+    prediction = model(testing_set)
+
+    model.train()
+
+    return prediction

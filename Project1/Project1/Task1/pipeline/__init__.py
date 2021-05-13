@@ -1,6 +1,4 @@
 # __init__.py
+from .network import Network1, init_xavier, fit, fit_custom, predict
+from .io_handler import IOHandler
 from .datahandler import Datahandler
-from .io_handler import IOHandler
-from .network import Network1, init_xavier, fit, fit_custom
-from .testing import Testing
-from .io_handler import IOHandler

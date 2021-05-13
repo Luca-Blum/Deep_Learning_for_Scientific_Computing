@@ -7,19 +7,21 @@ import torch
 
 
 class IOHandler:
-    def __init__(self):
+    def __init__(self, name: str):
+
+        self.name = name
 
         basepath = path.dirname(__file__)
 
         self.new_training_cycle = True
 
-        self.output_path = path.abspath(path.join(basepath, "..", "output"))
+        self.output_path = path.abspath(path.join(basepath, "..", "output", self.name))
 
-        self.loss_best_model_path = path.join(self.output_path, 'loss_best_model.dat')
-        self.best_model_path = path.join(self.output_path, 'best_model.pt')
+        self.loss_best_model_path = path.join(self.output_path, 'loss_best_model_' + self.name + '.dat')
+        self.best_model_path = path.join(self.output_path, 'best_model_' + self.name + '.pt')
 
-        self.loss_best_running_model_path = path.join(self.output_path, 'loss_best_running_model.dat')
-        self.best_running_model_path = path.join(self.output_path, 'best_running_model.pt')
+        self.loss_best_running_model_path = path.join(self.output_path, 'loss_best_running_model_' + self.name + '.dat')
+        self.best_running_model_path = path.join(self.output_path, 'best_running_model_' + self.name + '.pt')
 
         self.loss_running_model_log_path = path.join(self.output_path, 'log')
         self.loss_running_model_path = self.loss_running_model_log_path
@@ -54,7 +56,7 @@ class IOHandler:
             date_time = datetime.now()
             filename = str(date_time.day) + '-' + str(date_time.month) + '-' + str(date_time.year) + '_' + \
                        str(date_time.hour) + ':' + str(date_time.minute) + ':' + str(date_time.second) + ':' + \
-                       str(date_time.microsecond) + '.dat'
+                       str(date_time.microsecond) + '_' + self.name + '.dat'
 
             self.loss_running_model_path = path.join(self.loss_running_model_log_path, filename)
 
@@ -116,8 +118,10 @@ class IOHandler:
             torch.save(torch.load(self.best_running_model_path), self.best_model_path)
 
     def load_best_model(self):
-        return torch.load(self.best_running_model_path)
+        return torch.load(self.best_model_path)
 
+    def get_name(self):
+        return self.name
     """
     run_dd:mm:yy_hh:mm:ss.txt:
             file for run_configuration to write down all parameters and corresponding losses
@@ -147,8 +151,9 @@ if __name__ == '__main__':
         "init_weight_seed": 567
     }
 
-    iohandler = IOHandler()
-
+    iohandler = IOHandler('ts0')
+    iohandler.write_running(0,0,{'test':0},None)
+    iohandler.finalize()
     m = iohandler.load_best_model()
 
     print(m)

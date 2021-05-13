@@ -1,6 +1,0 @@
-Training and validation loss of the best model
-
-Configuration: 	 	 	{"hidden_layers": 1, "neurons": 40, "regularization_exp": 2, "regularization_param": 0, "batch_size": 20, "epochs": 100, "optimizer": "LBFGS", "init_weight_seed": 567}
-Training Loss: 	 	 	0.21567335893523015
-Validation Loss: 	 	0.20858467955071971
-
