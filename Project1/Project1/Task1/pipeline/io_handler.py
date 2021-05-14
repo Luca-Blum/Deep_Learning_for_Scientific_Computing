@@ -30,12 +30,14 @@ class IOHandler:
         if not Path(self.output_path).is_dir():
             Path(self.output_path).mkdir(parents=True, exist_ok=True)
 
+        if not Path(self.loss_best_model_path).is_file():
             with open(self.loss_best_model_path, "w+") as f:
                 f.write("Training and validation loss of the best model\n\n")
                 f.write("Configuration:\n")
                 f.write("Training Loss:\t\t\t" + str(np.finfo(float).max) + "\n")
                 f.write("Validation Loss:\t\t" + str(np.finfo(float).max) + "\n")
 
+        if not Path(self.loss_best_running_model_path).is_file():
             with open(self.loss_best_running_model_path, "w+") as f:
                 f.write("Training and validation loss of the currently best running model\n\n")
                 f.write("Configuration:\n")

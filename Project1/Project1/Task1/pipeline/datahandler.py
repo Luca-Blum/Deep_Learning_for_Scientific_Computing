@@ -17,7 +17,7 @@ class Datahandler:
         """
         training_df = pd.read_csv(training_txt_file)
 
-        self.min_max_scaler = preprocessing.MinMaxScaler()
+        self.min_max_scaler = preprocessing.StandardScaler()
 
         training_df[['t']] = self.min_max_scaler.fit_transform(training_df[['t']])
 
@@ -74,9 +74,6 @@ class Datahandler:
         predictions_tf0 = predict(model_tf0, self.t_testing)
         predictions_ts0 = predict(model_ts0, self.t_testing)
 
-        print(predictions_tf0)
-        print(predictions_ts0)
-
         self.submission['tf0'] = predictions_tf0.detach().numpy()
 
         self.submission['ts0'] = predictions_ts0.detach().numpy()
@@ -109,6 +106,10 @@ class Datahandler:
         plt.ylabel("y")
         plt.show()
 
+        """
+        sub_tf0 = torch.tensor(self.submission['tf0'].values.astype(np.float32).reshape((-1, 1)))
+        print(torch.mean((sub_tf0.reshape(-1, ) - self.tfo_training.reshape(-1, )) ** 2))
+        """
 
 if __name__ == "__main__":
 
@@ -120,7 +121,7 @@ if __name__ == "__main__":
     testing_filename = path.abspath(path.join(dirname, "..", "data", "TestingData.txt"))
     training_filename = path.abspath(path.join(dirname, "..", "data", "TrainingData.txt"))
 
-    datahandler = Datahandler(training_filename, testing_filename)
+    datahandler = Datahandler(training_filename, training_filename)
 
     datahandler.create_submission(iohandler_tf0.load_best_model(), iohandler_ts0.load_best_model())
 

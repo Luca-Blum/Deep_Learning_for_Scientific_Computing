@@ -29,13 +29,13 @@ class Network1(nn.Module):
         # Number of hidden layers
         self.n_hidden_layers = n_hidden_layers
         # Activation function
-        self.activation = nn.Tanh()
+        self.activation = nn.CELU()
         #
         self.regularization_param = regularization_param
         #
         self.regularization_exp = regularization_exp
 
-        self.dropout = nn.Dropout(0.2)
+        self.dropout = nn.Dropout(0.0)
 
         self.input_layer = nn.Linear(self.input_dimension, self.neurons)
         self.hidden_layers = nn.ModuleList([nn.Linear(self.neurons, self.neurons) for _ in range(n_hidden_layers)])
@@ -218,3 +218,5 @@ def predict(model, testing_set):
     model.train()
 
     return prediction
+
+

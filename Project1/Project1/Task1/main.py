@@ -46,10 +46,12 @@ def run_configuration(conf_dict, x, y, meta_info, io_handler, k_folds=5):
     # Xavier weight initialization
 
     if opt_type == "ADAM":
-        optimizer_ = optim.Adam(model.parameters(), lr=0.01)
+        optimizer_ = optim.Adam(model.parameters(), lr=0.0001)
     elif opt_type == "LBFGS":
         optimizer_ = optim.LBFGS(model.parameters(), lr=0.1, max_iter=1, max_eval=50000,
                                  tolerance_change=1.0 * np.finfo(float).eps)
+    elif opt_type == "SGD":
+        optimizer_ = optim.SGD(model.parameters(), lr=0.1)
     else:
         raise ValueError("Optimizer not recognized")
 
@@ -107,14 +109,14 @@ def run_configuration(conf_dict, x, y, meta_info, io_handler, k_folds=5):
 def train_predictor(iohandler):
 
     network_properties = {
-        "hidden_layers": [32],
-        "neurons": [64],
-        "regularization_exp": [2],
-        "regularization_param": [1e-4],
-        "batch_size": [100],
-        "epochs": [2000],
+        "hidden_layers": [4],
+        "neurons": [200],
+        "regularization_exp": [1],
+        "regularization_param": [0],
+        "batch_size": [16],
+        "epochs": [20000],
         "optimizer": ["ADAM"],
-        "init_weight_seed": [7]
+        "init_weight_seed": [70]
     }
 
     settings = list(itertools.product(*network_properties.values()))
