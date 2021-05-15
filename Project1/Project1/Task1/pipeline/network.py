@@ -65,7 +65,9 @@ def init_xavier(model, retrain_seed):
 
 
 def regularization(model, p):
-    reg_loss = torch.tensor(0.)
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+    reg_loss = torch.tensor(0.).to(device)
     for name, param in model.named_parameters():
         if 'weight' in name:
             reg_loss += torch.norm(param, p)
@@ -148,13 +150,16 @@ def fit_custom(model, training_set, validation_set, num_epochs, optimizer, meta,
 
     model.to(device)
 
+    print(device)
+
     for epoch in pbar:
 
         running_loss = list([0])
 
         # Loop over batches
         for j, (x_train_, u_train_) in enumerate(training_set):
-            x_train_, u_train_ = x_train_.to(device), u_train_.to(device)
+            x_train_ = x_train_.to(device)
+            u_train_ = u_train_.to(device)
             def closure():
                 # zero the parameter gradients
                 optimizer.zero_grad()
@@ -181,6 +186,8 @@ def fit_custom(model, training_set, validation_set, num_epochs, optimizer, meta,
         for i, data in enumerate(validation_set, 0):
             # Get inputs
             inputs, targets = data
+            inputs = inputs.to(device)
+            targets = targets.to(device)
 
             # Generate outputs
             prediction = model(inputs)
