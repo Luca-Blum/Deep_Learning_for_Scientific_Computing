@@ -144,12 +144,17 @@ def fit_custom(model, training_set, validation_set, num_epochs, optimizer, meta,
 
     pbar = tqdm(range(num_epochs), desc=description)
 
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+    model.to(device)
+
     for epoch in pbar:
 
         running_loss = list([0])
 
         # Loop over batches
         for j, (x_train_, u_train_) in enumerate(training_set):
+            x_train_, u_train_ = x_train_.to(device), u_train_.to(device)
             def closure():
                 # zero the parameter gradients
                 optimizer.zero_grad()
