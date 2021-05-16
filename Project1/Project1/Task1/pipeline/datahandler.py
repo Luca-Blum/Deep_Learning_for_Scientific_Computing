@@ -15,6 +15,9 @@ class Datahandler:
         :param testing_txt_file(str): Path to the testing txt file with the data
         :param type(str): tf0 or ts0
         """
+
+        # TODO: scale targets
+
         training_df = pd.read_csv(training_txt_file)
 
         self.min_max_scaler = preprocessing.StandardScaler()
