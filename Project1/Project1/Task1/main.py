@@ -110,11 +110,11 @@ def train_predictor(iohandler):
 
     network_properties = {
         "hidden_layers": [4],
-        "neurons": [200],
+        "neurons": [100],
         "regularization_exp": [1],
         "regularization_param": [0],
         "batch_size": [16],
-        "epochs": [20000],
+        "epochs": [5000],
         "optimizer": ["ADAM"],
         "init_weight_seed": [70]
     }
