@@ -16,13 +16,19 @@ class Datahandler:
         :param type(str): tf0 or ts0
         """
 
-        # TODO: scale targets
-
         training_df = pd.read_csv(training_txt_file)
 
-        self.min_max_scaler = preprocessing.StandardScaler()
+        print(training_df)
 
-        training_df[['t']] = self.min_max_scaler.fit_transform(training_df[['t']])
+        self.t_scaler = preprocessing.StandardScaler()
+        self.tf0_scaler = preprocessing.StandardScaler()
+        self.ts0_scaler = preprocessing.StandardScaler()
+
+        training_df[['t']] = self.t_scaler.fit_transform(training_df[['t']])
+        training_df[['tf0']] = self.tf0_scaler.fit_transform(training_df[['tf0']])
+        training_df[['ts0']] = self.ts0_scaler.fit_transform(training_df[['ts0']])
+
+        print(training_df)
 
         self.tfo_training = torch.tensor(training_df['tf0'].values.astype(np.float32).reshape((-1, 1)))
         self.tso_training = torch.tensor(training_df['ts0'].values.astype(np.float32).reshape((-1, 1)))
@@ -36,7 +42,7 @@ class Datahandler:
             self.t_testing_unscaled = testing_df[['t']].values
             self.submission = pd.DataFrame(self.t_testing_unscaled, columns=['t'])
 
-            testing_df[['t']] = self.min_max_scaler.transform(testing_df[['t']])
+            testing_df[['t']] = self.t_scaler.transform(testing_df[['t']])
 
             self.t_testing = torch.tensor(testing_df['t'].values.astype(np.float32).reshape((-1, 1)))
 
@@ -81,11 +87,14 @@ class Datahandler:
 
         self.submission['ts0'] = predictions_ts0.detach().numpy()
 
+        self.submission['tf0'] = self.tf0_scaler.inverse_transform(self.submission['tf0'])
+        self.submission['ts0'] = self.ts0_scaler.inverse_transform(self.submission['ts0'])
+
         self.submission.to_csv(self.output_path, index=False)
 
     def plot_data(self):
-        plt.plot(self.t_training, self.tfo_training, label="tf0")
-        plt.plot(self.t_training, self.tso_training, label="ts0")
+        plt.plot(self.t_training, self.tf0_scaler.inverse_transform(self.tfo_training.detach().numpy()), label="tf0")
+        plt.plot(self.t_training, self.ts0_scaler.inverse_transform(self.tso_training.detach().numpy()), label="ts0")
         plt.legend()
         plt.xlabel("x")
         plt.ylabel("y")
@@ -100,8 +109,8 @@ class Datahandler:
         plt.show()
 
     def plot_all(self):
-        plt.plot(self.t_training, self.tfo_training, label="tf0")
-        plt.plot(self.t_training, self.tso_training, label="ts0")
+        plt.plot(self.t_training, self.tf0_scaler.inverse_transform(self.tfo_training.detach().numpy()), label="tf0")
+        plt.plot(self.t_training, self.ts0_scaler.inverse_transform(self.tso_training.detach().numpy()), label="ts0")
         plt.plot(self.t_testing, self.submission['tf0'].values, label="testing tf0")
         plt.plot(self.t_testing, self.submission['ts0'].values, label="testing ts0")
         plt.legend()
