@@ -5,7 +5,7 @@ from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
 import itertools
 from sklearn.model_selection import KFold
-from pipeline import Datahandler, Network1, init_xavier, fit_custom, IOHandler
+from pipeline2 import Datahandler, Network1, init_xavier, fit_custom, IOHandler
 from os import path
 
 
@@ -110,11 +110,11 @@ def train_predictor(iohandler):
 
     network_properties = {
         "hidden_layers": [4],
-        "neurons": [4],
+        "neurons": [100],
         "regularization_exp": [1],
         "regularization_param": [0],
         "batch_size": [16],
-        "epochs": [100],
+        "epochs": [1000],
         "optimizer": ["ADAM"],
         "init_weight_seed": [70]
     }
@@ -146,7 +146,6 @@ def train_predictor(iohandler):
         print(setup_properties)
 
         predictors, targets = datahandler.get_frame(iohandler.get_name())
-
 
         relative_error_train_, relative_error_val_ = run_configuration(setup_properties,
                                                                        predictors,

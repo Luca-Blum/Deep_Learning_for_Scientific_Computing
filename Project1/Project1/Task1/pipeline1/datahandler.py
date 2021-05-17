@@ -2,7 +2,7 @@ import pandas as pd
 import torch
 import numpy as np
 from sklearn import preprocessing
-from pipeline import predict, IOHandler
+from pipeline1 import IOHandler
 from pathlib import Path
 from os import path
 import matplotlib.pyplot as plt
@@ -18,8 +18,6 @@ class Datahandler:
 
         training_df = pd.read_csv(training_txt_file)
 
-        print(training_df)
-
         self.t_scaler = preprocessing.StandardScaler()
         self.tf0_scaler = preprocessing.StandardScaler()
         self.ts0_scaler = preprocessing.StandardScaler()
@@ -27,8 +25,6 @@ class Datahandler:
         training_df[['t']] = self.t_scaler.fit_transform(training_df[['t']])
         training_df[['tf0']] = self.tf0_scaler.fit_transform(training_df[['tf0']])
         training_df[['ts0']] = self.ts0_scaler.fit_transform(training_df[['ts0']])
-
-        print(training_df)
 
         self.tfo_training = torch.tensor(training_df['tf0'].values.astype(np.float32).reshape((-1, 1)))
         self.tso_training = torch.tensor(training_df['ts0'].values.astype(np.float32).reshape((-1, 1)))
@@ -80,8 +76,8 @@ class Datahandler:
         Creates prediction for Testing data with trained model and writes result to text file
         """
 
-        predictions_tf0 = predict(model_tf0, self.t_testing)
-        predictions_ts0 = predict(model_ts0, self.t_testing)
+        predictions_tf0 = model_tf0(self.t_testing)
+        predictions_ts0 = model_ts0(self.t_testing)
 
         self.submission['tf0'] = predictions_tf0.detach().numpy()
 
@@ -122,6 +118,7 @@ class Datahandler:
         sub_tf0 = torch.tensor(self.submission['tf0'].values.astype(np.float32).reshape((-1, 1)))
         print(torch.mean((sub_tf0.reshape(-1, ) - self.tfo_training.reshape(-1, )) ** 2))
         """
+
 
 if __name__ == "__main__":
 

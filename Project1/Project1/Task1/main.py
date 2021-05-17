@@ -5,7 +5,7 @@ from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
 import itertools
 from sklearn.model_selection import KFold
-from pipeline import Datahandler, Network1, init_xavier, fit_custom, IOHandler
+from pipeline1 import Datahandler, Network1, init_xavier, fit_custom, IOHandler
 from os import path
 
 

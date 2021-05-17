@@ -154,7 +154,7 @@ if __name__ == '__main__':
     }
 
     iohandler = IOHandler('ts0')
-    iohandler.write_running(0,0,{'test':0},None)
+    iohandler.write_running(0, 0, {'test': 0}, None)
     iohandler.finalize()
     m = iohandler.load_best_model()
 

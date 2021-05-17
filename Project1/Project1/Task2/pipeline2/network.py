@@ -3,7 +3,6 @@ import torch.nn as nn
 import torch.utils
 import torch.utils.data
 import numpy as np
-import matplotlib.pyplot as plt
 from tqdm import tqdm
 
 
@@ -158,6 +157,7 @@ def fit_custom(model, training_set, validation_set, num_epochs, optimizer, meta,
         for j, (x_train_, u_train_) in enumerate(training_set):
             x_train_ = x_train_.to(device)
             u_train_ = u_train_.to(device)
+
             def closure():
                 # zero the parameter gradients
                 optimizer.zero_grad()
@@ -228,5 +228,3 @@ def predict(model, testing_set):
     model.train()
 
     return prediction
-
-
