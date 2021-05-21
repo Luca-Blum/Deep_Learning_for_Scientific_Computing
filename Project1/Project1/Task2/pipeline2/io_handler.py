@@ -120,6 +120,7 @@ class IOHandler:
             torch.save(torch.load(self.best_running_model_path), self.best_model_path)
 
     def load_best_model(self):
+        print("loading from: ", self.best_model_path)
         return torch.load(self.best_model_path)
 
     def get_name(self):

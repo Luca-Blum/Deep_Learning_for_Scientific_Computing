@@ -33,8 +33,8 @@ class Datahandler:
         original_dfs = {}
         for idx, file in enumerate(training_txt_file):
             original_dfs[self.names[idx]] = pd.read_csv(file, names=self.header, sep=' ')
-            self.scalers_pred[self.names[idx]] = preprocessing.StandardScaler()
-            self.scalers_target[self.names[idx]] = preprocessing.StandardScaler()
+            self.scalers_pred[self.names[idx]] = preprocessing.MinMaxScaler()
+            self.scalers_target[self.names[idx]] = preprocessing.MinMaxScaler()
 
         previous = self.names[0]
         self.training_dfs[previous] = original_dfs[previous]
@@ -69,10 +69,11 @@ class Datahandler:
 
             self.testing_dfs = {}
 
-            # Create different scalings
+            # Create different scalings => NO SCALING
             for idx, scaler in enumerate(self.scalers_pred):
                 copy = testing_df.copy()
-                copy[self.predictors] = self.scalers_pred[self.names[idx]].transform(testing_df[self.predictors])
+                copy[self.predictors] = copy
+                # self.scalers_pred[self.names[idx]].transform(testing_df[self.predictors])
                 self.testing_dfs[self.names[idx]] = torch.tensor(copy.values.astype(np.float32).reshape((-1, 8)))
 
             basepath = path.dirname(__file__)
