@@ -158,6 +158,10 @@ def fit_custom(model, training_set, validation_set, num_epochs, optimizer, meta,
             x_train_ = x_train_.to(device)
             u_train_ = u_train_.to(device)
 
+            print(x_train_)
+            print(u_train_)
+            exit()
+
             def closure():
                 # zero the parameter gradients
                 optimizer.zero_grad()

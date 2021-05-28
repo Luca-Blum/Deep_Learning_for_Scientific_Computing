@@ -3,53 +3,73 @@ import torch.nn as nn
 import torch.utils
 import torch.utils.data
 import numpy as np
+from torch.autograd import Variable
 from tqdm import tqdm
 
+# https://blog.floydhub.com/long-short-term-memory-from-zero-to-hero-with-pytorch/
 
 class LSTM(nn.Module):
-    def __init__(self, input_dimension, output_dimension, n_hidden_layers, neurons, regularization_param,
-                 regularization_exp):
-        """
-        Creating a pytorch dense neural network
-        :param input_dimension: dimension of the predictors
-        :param output_dimension: dimension of the target
-        :param n_hidden_layers: number of hidden layers
-        :param neurons: number of neurons in each hidden layer
-        :param regularization_param: strength of regularization
-        :param regularization_exp: norm for regularization
-        https://stackabuse.com/time-series-prediction-using-lstm-with-pytorch-in-python/
-        """
+    def __init__(self, input_size, output_size, hidden_dim, n_layers, drop_prob=0.0, regularization_param=0.0,
+                 regularization_exp=2):
         super(LSTM, self).__init__()
-        # Number of input dimensions n
-        self.input_dimension = input_dimension
-        # Number of output dimensions m
-        self.output_dimension = output_dimension
-        # Number of neurons per layer
-        self.neurons = neurons
-        # Number of hidden layers
-        self.n_hidden_layers = n_hidden_layers
-        # Activation function
-        self.activation = nn.CELU()
+
+        self.hidden_dim = hidden_dim
+
+        self.n_layers = n_layers
         #
         self.regularization_param = regularization_param
         #
         self.regularization_exp = regularization_exp
 
-        self.dropout = nn.Dropout(0.0)
+        self.lstm = nn.LSTM(input_size, hidden_dim, n_layers, batch_first=True)
 
-        self.lstm = nn.LSTM(self.input_dimension, self.neurons, num_layers=self.n_hidden_layers)
+        self.dropout = nn.Dropout(drop_prob)
 
-        self.hidden_cell = (torch.zeros(1, 1, self.neurons),
-                            torch.zeros(1, 1, self.neurons))
+        self.fc = nn.Linear(hidden_dim, output_size)
 
-        self.linear = nn.Linear(self.neurons, self.output_dimension)
+    def forward(self, x, hidden):
 
+        r_out, hidden = self.lstm(x, hidden)
+
+        out_drop = self.dropout(r_out)
+
+        out = out_drop.contiguous().view(-1, self.hidden_dim)
+
+        output = self.fc(out)
+
+        return output, hidden
+    """
     def forward(self, x):
-        # The forward function performs the set of affine and non-linear transformations defining the network
-        # (see equation above)
-        lstm_out, self.hidden_cell = self.lstm(x.view(len(x) , 1, -1), self.hidden_cell)
-        predictions = self.linear(lstm_out.view(len(x), -1))
-        return predictions[-1]
+        # Initialize hidden state with zeros
+        h0 = torch.zeros(self.n_layers, x.size(0), self.hidden_dim)
+
+        # Initialize cell state
+        c0 = torch.zeros(self.n_layers, x.size(0), self.hidden_dim)
+
+        # One time step
+        # We need to detach as we are doing truncated backpropagation through time (BPTT)
+        # If we don't, we'll backprop all the way to the start even after going through another batch
+        out, (hn, cn) = self.lstm(x, (h0, c0))
+
+        out = self.dropout(out)
+
+        out = out.contiguous().view(-1, self.hidden_dim)
+
+        output = self.fc(out)
+
+        return output
+    """
+
+    def init_hidden(self, batch_size):
+        ''' Initializes hidden state '''
+        # Create two new tensors with sizes n_layers x batch_size x n_hidden,
+        # initialized to zero, for hidden state and cell state of LSTM
+        weight = next(self.parameters()).data
+
+        hidden = (weight.new(self.n_layers, batch_size, self.hidden_dim).zero_(),
+                  weight.new(self.n_layers, batch_size, self.hidden_dim).zero_())
+
+        return hidden
 
 def init_xavier(model, retrain_seed):
     torch.manual_seed(retrain_seed)
@@ -74,55 +94,12 @@ def regularization(model, p):
     return reg_loss
 
 
-def fit(model, training_set, x_validation_, y_validation_, num_epochs, optimizer, p, verbose=True):
-    history = [[], []]
-    regularization_param = model.regularization_param
-    regularization_exp = model.regularization_exp
 
-    # Loop over epochs
-    for epoch in range(num_epochs):
-        if verbose:
-            print("################################ ", epoch, " ################################")
-
-        running_loss = list([0])
-
-        # Loop over batches
-        for j, (x_train_, u_train_) in enumerate(training_set):
-            def closure():
-                # zero the parameter gradients
-                optimizer.zero_grad()
-                # forward + backward + optimize
-                u_pred_ = model(x_train_)
-                loss_u = torch.mean((u_pred_.reshape(-1, ) - u_train_.reshape(-1, )) ** p)
-                loss_reg = regularization(model, regularization_exp)
-                loss = loss_u + regularization_param * loss_reg
-                loss.backward()
-                # Compute average training loss over batches for the current epoch
-                running_loss[0] += loss.item() / len(training_set)
-                return loss
-
-            optimizer.step(closure=closure)
-
-        y_validation_pred_ = model(x_validation_)
-        validation_loss = torch.mean((y_validation_pred_.reshape(-1, ) - y_validation_.reshape(-1, )) ** p).item()
-        history[0].append(running_loss[0])
-        history[1].append(validation_loss)
-
-        if verbose:
-            print('Training Loss: ', np.round(running_loss[0], 8))
-            print('Validation Loss: ', np.round(validation_loss, 8))
-
-    print('Final Training Loss: ', np.round(history[0][-1], 8))
-    print('Final Validation Loss: ', np.round(history[1][-1], 8))
-    return history
-
-
-def fit_custom(model, training_set, validation_set, num_epochs, optimizer, meta, p=2, output_step=0):
+def fit_custom(model, training_set, validation_set, num_epochs, optimizer, meta, batch_size=1, p=2, output_step=0):
     """
     Adapted from fit function provided by the Deep Learning for scientific computing team @ ETHZ in FS 2021
     :param model: pytorch neural network
     :param training_set:  compatible pytorch tensor to train model
-    :param validation_set: compatible pytorch tensor to evaluate model
     :param num_epochs: number of epochs to train model
     :param optimizer: type of optimizer [torch.optim.Adam, torch.optim.LBFGS]
     :param meta: dictionary with    total number of configurations to run,
@@ -152,6 +129,8 @@ def fit_custom(model, training_set, validation_set, num_epochs, optimizer, meta,
 
     for epoch in pbar:
 
+        hidden = list([model.init_hidden(batch_size=batch_size)])
+
         running_loss = list([0])
 
         # Loop over batches
@@ -160,10 +139,17 @@ def fit_custom(model, training_set, validation_set, num_epochs, optimizer, meta,
             u_train_ = u_train_.to(device)
 
             def closure():
+
+                hidden[0] = tuple([each.data for each in hidden[0]])
+
                 # zero the parameter gradients
                 optimizer.zero_grad()
+
                 # forward + backward + optimize
-                u_pred_ = model(x_train_)
+                u_pred_, hidden[0] = model(x_train_, hidden[0])
+
+                # u_pred_ = model(x_train_)
+
                 loss_u = torch.mean((u_pred_.reshape(-1, ) - u_train_.reshape(-1, )) ** p)
                 loss_reg = regularization(model, regularization_exp)
                 loss = loss_u + regularization_param * loss_reg
@@ -174,7 +160,7 @@ def fit_custom(model, training_set, validation_set, num_epochs, optimizer, meta,
 
             optimizer.step(closure=closure)
 
-        history[0].append(running_loss[0] / len(training_set.sampler))
+        history[0].append(running_loss[0] / len(training_set))
 
         # Evaluation
         model.eval()
@@ -182,14 +168,16 @@ def fit_custom(model, training_set, validation_set, num_epochs, optimizer, meta,
         running_validation_loss = 0
 
         # Iterate over the test data and generate predictions
+        hidden_val = list([model.init_hidden(batch_size=batch_size)])
         for i, data in enumerate(validation_set, 0):
+            hidden_val[0] = tuple([each.data for each in hidden_val[0]])
             # Get inputs
             inputs, targets = data
             inputs = inputs.to(device)
             targets = targets.to(device)
 
             # Generate outputs
-            prediction = model(inputs)
+            prediction, hidden_val[0] = model(inputs, hidden_val[0])
 
             running_validation_loss += torch.mean((prediction.reshape(-1, )
                                                    - targets.reshape(-1, )) ** p).item() * inputs.size(0)
@@ -200,6 +188,7 @@ def fit_custom(model, training_set, validation_set, num_epochs, optimizer, meta,
 
         if output_step != 0 and epoch % output_step == 0:
             pbar.set_postfix({'Training loss': history[0][-1], 'Validation loss': history[1][-1]})
+
 
     '''
     # Plot trainings process

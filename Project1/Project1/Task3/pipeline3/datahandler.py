@@ -2,6 +2,8 @@ import pandas as pd
 import torch
 import numpy as np
 from sklearn import preprocessing
+from torch.utils.data import DataLoader
+
 from pipeline1 import IOHandler
 from pathlib import Path
 from os import path
@@ -26,25 +28,53 @@ class Datahandler:
         training_df[['tf0']] = self.tf0_scaler.fit_transform(training_df[['tf0']])
         training_df[['ts0']] = self.ts0_scaler.fit_transform(training_df[['ts0']])
 
-        tfo_training = torch.FloatTensor(training_df['tf0'].values.astype(np.float32)).view(-1)
-        tso_training = torch.FloatTensor(training_df['ts0'].values.astype(np.float32)).view(-1)
+        tf0_training = training_df['tf0'].values.astype(np.float32)
+        ts0_training = training_df['ts0'].values.astype(np.float32)
         self.t_training = torch.tensor(training_df['t'].values.astype(np.float32).reshape((-1, 1)))
 
-        self.train_window = 12
+        self.train_window = 25
+        self.prediction_offset = 1
 
-        self.tfo_training = []
-        l = len(tfo_training)
-        for i in range(l - self.train_window):
-            train_seq = tfo_training[i: i + self.train_window]
-            train_label = tfo_training[i + self.train_window: i + self.train_window + 1]
-            self.tfo_training.append((train_seq, train_label))
+        if self.train_window <= self.prediction_offset:
+            raise ValueError("training window needs to be larger than prediction offset")
 
-        self.tso_training = []
-        l = len(tso_training)
+        self.tf0_x = []
+        self.tf0_y = []
+
+        l = len(tf0_training)
         for i in range(l - self.train_window):
+            '''
             train_seq = tso_training[i: i + self.train_window]
-            train_label = tso_training[i + self.train_window: i + self.train_window + 1]
-            self.tfo_training.append((train_seq, train_label))
+            train_label = tso_training[i + self.train_window: i + self.train_window + self.prediction_window]
+            '''
+
+            train_seq = tf0_training[i: i + self.train_window]
+            train_label = tf0_training[i + self.prediction_offset: i + self.train_window + self.prediction_offset]
+
+            self.tf0_x.append(train_seq.reshape((-1,1)))
+            self.tf0_y.append(train_label)
+
+        self.tf0_x = torch.from_numpy(np.array(self.tf0_x))
+        self.tf0_y = torch.from_numpy(np.array(self.tf0_y))
+
+        self.ts0_x = []
+        self.ts0_y = []
+
+        l = len(ts0_training)
+        for i in range(l - self.train_window):
+            '''
+            train_seq = tso_training[i: i + self.train_window]
+            train_label = tso_training[i + self.train_window: i + self.train_window + self.prediction_window]
+            '''
+
+            train_seq = ts0_training[i: i + self.train_window]
+            train_label = ts0_training[i + self.prediction_offset: i + self.train_window + self.prediction_offset]
+
+            self.ts0_x.append(train_seq.reshape((-1, 1)))
+            self.ts0_y.append(train_label)
+
+        self.ts0_x = torch.from_numpy(np.array(self.ts0_x))
+        self.ts0_y = torch.from_numpy(np.array(self.ts0_y))
 
         self.output_path = None
 
@@ -73,9 +103,9 @@ class Datahandler:
         :return: tensor with either target variable 'tf0' or 'ts0'
         """
         if target_type == 'ts0':
-            return self.tso_training
+            return self.ts0_x, self.ts0_y
         else:
-            return self.tfo_training
+            return self.tf0_x, self.tf0_y
 
     def create_submission(self, model_tf0, model_ts0):
 
@@ -142,10 +172,16 @@ if __name__ == "__main__":
 
     datahandler = Datahandler(training_filename, training_filename)
 
-    print(datahandler.get_predictors())
 
-    datahandler.plot_data()
+    # print(datahandler.get_data('tf0'))
 
-    datahandler.create_submission(iohandler_tf0.load_best_model(), iohandler_ts0.load_best_model())
+    x, y = datahandler.get_data('tf0')
 
-    datahandler.plot_all()
+
+    training_set = DataLoader(torch.utils.data.TensorDataset(x, y),
+                              batch_size=2, shuffle=True)
+
+    for i, (x, y) in enumerate(training_set):
+        print(x)
+        print(y)
+        break

@@ -81,6 +81,10 @@ def run_configuration(conf_dict, x, y, meta_info, io_handler, k_folds=5):
                                     batch_size=batch_size,
                                     sampler=test_subsampler)
 
+        print(torch.utils.data.TensorDataset(x, y))
+        print(x)
+        print(y)
+
         init_xavier(model, retrain)
 
         fold_training_loss, fold_validation_loss = fit_custom(model, training_set, validation_set,
