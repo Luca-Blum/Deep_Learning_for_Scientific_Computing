@@ -2,9 +2,8 @@ import pandas as pd
 import torch
 import numpy as np
 from sklearn import preprocessing
-from torch.utils.data import DataLoader
 
-from pipeline1 import IOHandler
+from pipeline3 import IOHandler
 from pathlib import Path
 from os import path
 import matplotlib.pyplot as plt
@@ -18,19 +17,19 @@ class Datahandler:
         :param type(str): tf0 or ts0
         """
 
-        training_df = pd.read_csv(training_txt_file)
+        self.training_df = pd.read_csv(training_txt_file)
 
         self.t_scaler = preprocessing.MinMaxScaler()
         self.tf0_scaler = preprocessing.MinMaxScaler()
         self.ts0_scaler = preprocessing.MinMaxScaler()
 
-        training_df[['t']] = self.t_scaler.fit_transform(training_df[['t']])
-        training_df[['tf0']] = self.tf0_scaler.fit_transform(training_df[['tf0']])
-        training_df[['ts0']] = self.ts0_scaler.fit_transform(training_df[['ts0']])
+        self.training_df[['t']] = self.t_scaler.fit_transform(self.training_df[['t']])
+        self.training_df[['tf0']] = self.tf0_scaler.fit_transform(self.training_df[['tf0']])
+        self.training_df[['ts0']] = self.ts0_scaler.fit_transform(self.training_df[['ts0']])
 
-        tf0_training = training_df['tf0'].values.astype(np.float32)
-        ts0_training = training_df['ts0'].values.astype(np.float32)
-        self.t_training = torch.tensor(training_df['t'].values.astype(np.float32).reshape((-1, 1)))
+        self.tf0_training = self.training_df['tf0'].values.astype(np.float32)
+        self.ts0_training = self.training_df['ts0'].values.astype(np.float32)
+        self.t_training = torch.tensor(self.training_df['t'].values.astype(np.float32).reshape((-1, 1)))
 
         self.train_window = 25
         self.prediction_offset = 1
@@ -41,17 +40,17 @@ class Datahandler:
         self.tf0_x = []
         self.tf0_y = []
 
-        l = len(tf0_training)
+        l = len(self.tf0_training)
         for i in range(l - self.train_window):
             '''
             train_seq = tso_training[i: i + self.train_window]
             train_label = tso_training[i + self.train_window: i + self.train_window + self.prediction_window]
             '''
 
-            train_seq = tf0_training[i: i + self.train_window]
-            train_label = tf0_training[i + self.prediction_offset: i + self.train_window + self.prediction_offset]
+            train_seq = self.tf0_training[i: i + self.train_window]
+            train_label = self.tf0_training[i + self.prediction_offset: i + self.train_window + self.prediction_offset]
 
-            self.tf0_x.append(train_seq.reshape((-1,1)))
+            self.tf0_x.append(train_seq.reshape((-1, 1)))
             self.tf0_y.append(train_label)
 
         self.tf0_x = torch.from_numpy(np.array(self.tf0_x))
@@ -60,15 +59,15 @@ class Datahandler:
         self.ts0_x = []
         self.ts0_y = []
 
-        l = len(ts0_training)
+        l = len(self.ts0_training)
         for i in range(l - self.train_window):
             '''
             train_seq = tso_training[i: i + self.train_window]
             train_label = tso_training[i + self.train_window: i + self.train_window + self.prediction_window]
             '''
 
-            train_seq = ts0_training[i: i + self.train_window]
-            train_label = ts0_training[i + self.prediction_offset: i + self.train_window + self.prediction_offset]
+            train_seq = self.ts0_training[i: i + self.train_window]
+            train_label = self.ts0_training[i + self.prediction_offset: i + self.train_window + self.prediction_offset]
 
             self.ts0_x.append(train_seq.reshape((-1, 1)))
             self.ts0_y.append(train_label)
@@ -86,7 +85,7 @@ class Datahandler:
 
             testing_df[['t']] = self.t_scaler.transform(testing_df[['t']])
 
-            self.t_testing = torch.tensor(testing_df['t'].values.astype(np.float32).reshape((-1, 1)))
+            self.t_testing = torch.tensor(testing_df['t'].values.astype(np.float32).reshape((-1, 1, 1, 1)))
 
             basepath = path.dirname(__file__)
 
@@ -107,6 +106,17 @@ class Datahandler:
         else:
             return self.tf0_x, self.tf0_y
 
+    def get_raw(self, target_type: str):
+        """
+        :param target_type: specify target variable ['tf0', 'ts0']
+        :return: tensor with either target variable 'tf0' or 'ts0'
+        """
+
+        if target_type == 'ts0':
+            return self.ts0_training
+        else:
+            return self.tf0_training
+
     def create_submission(self, model_tf0, model_ts0):
 
         if self.output_path is None:
@@ -116,17 +126,44 @@ class Datahandler:
         Creates prediction for Testing data with trained model and writes result to text file
         """
 
-        predictions_tf0 = model_tf0(self.t_testing)
-        predictions_ts0 = model_ts0(self.t_testing)
+        previous_tf0, hidden_tf0 = self.priming(model_tf0, 'tf0')
+        previous_ts0, hidden_ts0 = self.priming(model_ts0, 'ts0')
 
-        self.submission['tf0'] = predictions_tf0.detach().numpy()
+        predictions_tf0 = []
+        predictions_ts0 = []
 
-        self.submission['ts0'] = predictions_ts0.detach().numpy()
+        print(self.t_testing)
 
-        self.submission['tf0'] = self.tf0_scaler.inverse_transform(self.submission['tf0'])
-        self.submission['ts0'] = self.ts0_scaler.inverse_transform(self.submission['ts0'])
+        for t in self.t_testing:
+
+            hidden_tf0 = tuple([each.data for each in hidden_tf0])
+            previous_tf0, hidden_tf0 = model_tf0(t, hidden_tf0)
+            predictions_tf0.append(previous_tf0.detach().numpy()[0, 0])
+
+            hidden_ts0 = tuple([each.data for each in hidden_ts0])
+            previous_ts0, hidden_ts0 = model_tf0(t, hidden_ts0)
+            predictions_ts0.append(previous_ts0.detach().numpy()[0, 0])
+
+        self.submission['tf0'] = np.array(predictions_tf0)
+        self.submission['ts0'] = np.array(predictions_ts0)
+
+        self.submission['tf0'] = self.tf0_scaler.inverse_transform(self.submission[['tf0']])
+        self.submission['ts0'] = self.ts0_scaler.inverse_transform(self.submission[['ts0']])
 
         self.submission.to_csv(self.output_path, index=False)
+
+    def priming(self, model, target_type):
+        model.eval()
+
+        prime = self.get_raw(target_type)
+
+        hidden = model.init_hidden(1)
+        for x in prime:
+            feature = torch.from_numpy(np.array([[[x]]]))
+            hidden = tuple([each.data for each in hidden])
+            out, hidden = model(feature, hidden)
+
+        return out, hidden
 
     def plot_data(self):
         plt.plot(self.t_training, self.tf0_scaler.inverse_transform(self.tfo_training.detach().numpy()), label="tf0")
@@ -145,10 +182,15 @@ class Datahandler:
         plt.show()
 
     def plot_all(self):
-        plt.plot(self.t_training, self.tf0_scaler.inverse_transform(self.tfo_training.detach().numpy()), label="tf0")
-        plt.plot(self.t_training, self.ts0_scaler.inverse_transform(self.tso_training.detach().numpy()), label="ts0")
-        plt.plot(self.t_testing, self.submission['tf0'].values, label="testing tf0")
-        plt.plot(self.t_testing, self.submission['ts0'].values, label="testing ts0")
+
+        tf0 = self.tf0_scaler.inverse_transform(self.training_df[['tf0']])
+        ts0 = self.ts0_scaler.inverse_transform(self.training_df[['ts0']])
+
+        tf0 = np.append(tf0.flatten(), self.submission[['tf0']].to_numpy().flatten())
+        ts0 = np.append(ts0.flatten(), self.submission[['ts0']].to_numpy().flatten())
+
+        plt.plot(range(len(tf0)), tf0, label="tf0")
+        plt.plot(range(len(ts0)), ts0, label="ts0")
         plt.legend()
         plt.xlabel("x")
         plt.ylabel("y")
@@ -172,16 +214,6 @@ if __name__ == "__main__":
 
     datahandler = Datahandler(training_filename, training_filename)
 
+    datahandler.create_submission(iohandler_tf0.load_best_model(), iohandler_ts0.load_best_model())
 
-    # print(datahandler.get_data('tf0'))
-
-    x, y = datahandler.get_data('tf0')
-
-
-    training_set = DataLoader(torch.utils.data.TensorDataset(x, y),
-                              batch_size=2, shuffle=True)
-
-    for i, (x, y) in enumerate(training_set):
-        print(x)
-        print(y)
-        break
+    datahandler.plot_all()

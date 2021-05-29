@@ -60,14 +60,14 @@ class LSTM(nn.Module):
         return output
     """
 
-    def init_hidden(self, batch_size):
+    def init_hidden(self, batch_size, device):
         ''' Initializes hidden state '''
         # Create two new tensors with sizes n_layers x batch_size x n_hidden,
         # initialized to zero, for hidden state and cell state of LSTM
         weight = next(self.parameters()).data
 
-        hidden = (weight.new(self.n_layers, batch_size, self.hidden_dim).zero_(),
-                  weight.new(self.n_layers, batch_size, self.hidden_dim).zero_())
+        hidden = (weight.new(self.n_layers, batch_size, self.hidden_dim).zero_().to(device),
+                  weight.new(self.n_layers, batch_size, self.hidden_dim).zero_().to(device))
 
         return hidden
 
@@ -129,7 +129,7 @@ def fit_custom(model, training_set, validation_set, num_epochs, optimizer, meta,
 
     for epoch in pbar:
 
-        hidden = list([model.init_hidden(batch_size=batch_size)])
+        hidden = list([model.init_hidden(batch_size, device)])
 
         running_loss = list([0])
 
@@ -168,21 +168,21 @@ def fit_custom(model, training_set, validation_set, num_epochs, optimizer, meta,
         running_validation_loss = 0
 
         # Iterate over the test data and generate predictions
-        hidden_val = list([model.init_hidden(batch_size=batch_size)])
+        hidden_val = model.init_hidden(1, device)
         for i, data in enumerate(validation_set, 0):
-            hidden_val[0] = tuple([each.data for each in hidden_val[0]])
+            hidden_val = tuple([each.data for each in hidden_val])
             # Get inputs
             inputs, targets = data
             inputs = inputs.to(device)
             targets = targets.to(device)
 
             # Generate outputs
-            prediction, hidden_val[0] = model(inputs, hidden_val[0])
+            prediction, hidden_val = model(inputs, hidden_val)
 
             running_validation_loss += torch.mean((prediction.reshape(-1, )
                                                    - targets.reshape(-1, )) ** p).item() * inputs.size(0)
 
-        history[1].append(running_validation_loss / len(validation_set.sampler))
+        history[1].append(running_validation_loss / len(validation_set))
 
         model.train()
 
