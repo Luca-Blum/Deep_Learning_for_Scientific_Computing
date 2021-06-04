@@ -147,14 +147,17 @@ class Datahandler:
 
         plt.scatter(self.t_scaler.inverse_transform(self.t_testing.detach().numpy()),
                     self.T_scaler.inverse_transform(self.T_testing.detach().numpy()),
-                    color='lime', marker='+', label="T")
+                    color='lime', marker='+', label="measured")
 
         for i in range(8):
             plt.scatter(self.t_scaler.inverse_transform(self.t_training[i*128:(i+1)*128].detach().numpy()),
-                       self.T_scaler.inverse_transform(self.T_training.detach().numpy()[i*128:(i+1)*128]),
-                       color=colors[i], marker='+', label=labels[i])
+                        self.T_scaler.inverse_transform(self.T_training.detach().numpy()[i*128:(i+1)*128]),
+                        color=colors[i], marker='+', label=labels[i])
 
-        plt.legend()
+        handles, labels = plt.gca().get_legend_handles_labels()
+        order = [1, 2, 3, 4, 5, 6, 7, 8, 0]
+        plt.legend([handles[idx] for idx in order], [labels[idx] for idx in order])
+
         plt.xlabel("Time")
         plt.ylabel("Temperature")
         plt.show()
@@ -208,7 +211,7 @@ class Datahandler:
 
         ax.scatter(self.t_scaler.inverse_transform(self.t_testing.detach().numpy()),
                    self.T_scaler.inverse_transform(self.T_testing.detach().numpy()),
-                   color='lime', marker='+', label="training")
+                   color='lime', marker='+', label="measured")
 
         for i in range(8):
             ax.scatter(self.t_scaler.inverse_transform(self.t_training[i*128:(i+1)*128].detach().numpy()),
@@ -233,8 +236,9 @@ class Datahandler:
         box = ax.get_position()
         ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
 
-        # Put a legend to the right of the current axis
-        ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+        handles, labels = plt.gca().get_legend_handles_labels()
+        order = [1, 2, 3, 4, 5, 6, 7, 8, 0, 9]
+        ax.legend([handles[idx] for idx in order], [labels[idx] for idx in order], loc='center left', bbox_to_anchor=(1, 0.5))
 
         ax.set_xlabel("Time")
         ax.set_ylabel("Temperature")
