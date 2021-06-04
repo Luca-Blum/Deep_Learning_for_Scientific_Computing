@@ -19,7 +19,7 @@ conda deactivate
 conda remove --name pytorch --all
 
 
-## [Project 1](https://github.com/lblum95/Deep_Learning_for_Scientific_Computing/tree/master/Project1/Project1/README.md)
+## [Project 1](https://github.com/lblum95/Deep_Learning_for_Scientific_Computing/tree/master/Project1/README.md)
 Consists of 3 tasks.
-## [Project 2](https://github.com/lblum95/Deep_Learning_for_Scientific_Computing/tree/master/Project2/Project2/README.md)
+## [Project 2](https://github.com/lblum95/Deep_Learning_for_Scientific_Computing/tree/master/Project2/README.md)
 Consists of 2 tasks.
