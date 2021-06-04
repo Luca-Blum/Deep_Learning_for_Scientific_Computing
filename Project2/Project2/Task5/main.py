@@ -164,9 +164,8 @@ def train_predictor(iohandler, network_properties, debug=False):
     train_err_conf = np.array(train_err_conf)
     val_err_conf = np.array(val_err_conf)
 
-    configuration_number = np.linspace(start=0.0, stop=len(train_err_conf), num=len(train_err_conf), endpoint=False)
-
     if debug:
+        configuration_number = np.linspace(start=0.0, stop=len(train_err_conf), num=len(train_err_conf), endpoint=False)
         plt.plot(configuration_number, train_err_conf, label="Training Error")
         plt.plot(configuration_number, val_err_conf, label="Validation Error")
         plt.legend()

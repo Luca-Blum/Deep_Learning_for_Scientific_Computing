@@ -51,30 +51,27 @@ class Datahandler:
             if not Path(output_dir_path).is_dir():
                 Path(output_dir_path).mkdir(parents=True, exist_ok=True)
 
-    def get_predictors(self):
-        """
-        :return: tensor with predictors
-        """
-        return self.t_training
-
-    def get_targets(self, target_type: str):
+    def get_data(self, target_type: str):
         """
         :param target_type: specify target variable ['tf0', 'ts0']
-        :return: tensor with either target variable 'tf0' or 'ts0'
+        :return: tensor with predictors and tensor with either target variable 'tf0' or 'ts0'
         """
+
         if target_type == 'ts0':
-            return self.tso_training
+            return self.t_training, self.tso_training
         else:
-            return self.tfo_training
+            return self.t_training, self.tfo_training
 
     def create_submission(self, model_tf0, model_ts0):
+        """
+        Creates prediction for testing data with trained model and writes result to text file
+        """
 
         if self.output_path is None:
             raise ValueError("testing file was not specified during initialization")
 
-        """
-        Creates prediction for Testing data with trained model and writes result to text file
-        """
+        if model_tf0 is None or model_ts0 is None:
+            raise ValueError("please provide valid models")
 
         predictions_tf0 = model_tf0(self.t_testing)
         predictions_ts0 = model_ts0(self.t_testing)
@@ -89,35 +86,47 @@ class Datahandler:
         self.submission.to_csv(self.output_path, index=False)
 
     def plot_data(self):
-        plt.plot(self.t_training, self.tf0_scaler.inverse_transform(self.tfo_training.detach().numpy()), label="tf0")
-        plt.plot(self.t_training, self.ts0_scaler.inverse_transform(self.tso_training.detach().numpy()), label="ts0")
+        """
+        plot training time vs training temperature fluid and training time vs training temperature solid
+        """
+
+        plt.plot(self.t_scaler.inverse_transform(self.t_training.detach().numpy()),
+                 self.tf0_scaler.inverse_transform(self.tfo_training.detach().numpy()), label="tf0")
+        plt.plot(self.t_scaler.inverse_transform(self.t_training.detach().numpy()),
+                 self.ts0_scaler.inverse_transform(self.tso_training.detach().numpy()), label="ts0")
         plt.legend()
-        plt.xlabel("x")
-        plt.ylabel("y")
+        plt.xlabel("Time")
+        plt.ylabel("Temperature")
         plt.show()
 
     def plot_submission(self):
-        plt.plot(self.t_testing, self.submission['tf0'].values, label="testing tf0")
-        plt.plot(self.t_testing, self.submission['ts0'].values, label="testing ts0")
+        """
+        plot testing time vs predicted temperature of solid and fluid
+        """
+
+        plt.plot(self.t_scaler.inverse_transform(self.t_testing.detach().numpy()),
+                 self.submission['tf0'].values, label="Predicted tf0")
+        plt.plot(self.t_scaler.inverse_transform(self.t_testing.detach().numpy()),
+                 self.submission['ts0'].values, label="Predicted ts0")
         plt.legend()
-        plt.xlabel("x")
-        plt.ylabel("y")
+        plt.xlabel("Time")
+        plt.ylabel("Temperature")
         plt.show()
 
     def plot_all(self):
-        plt.plot(self.t_training, self.tf0_scaler.inverse_transform(self.tfo_training.detach().numpy()), label="tf0")
-        plt.plot(self.t_training, self.ts0_scaler.inverse_transform(self.tso_training.detach().numpy()), label="ts0")
-        plt.plot(self.t_testing, self.submission['tf0'].values, label="testing tf0")
-        plt.plot(self.t_testing, self.submission['ts0'].values, label="testing ts0")
-        plt.legend()
-        plt.xlabel("x")
-        plt.ylabel("y")
-        plt.show()
+        """
+        plot training time vs training temperature fluid and training time vs training temperature solid
+        plot testing time vs predicted temperature of solid and fluid
+        """
 
-        """
-        sub_tf0 = torch.tensor(self.submission['tf0'].values.astype(np.float32).reshape((-1, 1)))
-        print(torch.mean((sub_tf0.reshape(-1, ) - self.tfo_training.reshape(-1, )) ** 2))
-        """
+        plt.plot(self.t_training, self.tf0_scaler.inverse_transform(self.tfo_training.detach().numpy()), label="Training tf0")
+        plt.plot(self.t_training, self.ts0_scaler.inverse_transform(self.tso_training.detach().numpy()), label="Training ts0")
+        plt.plot(self.t_testing, self.submission['tf0'].values, label="Predicted tf0")
+        plt.plot(self.t_testing, self.submission['ts0'].values, label="Predicted ts0")
+        plt.legend()
+        plt.xlabel("Time")
+        plt.ylabel("Temperature")
+        plt.show()
 
 
 if __name__ == "__main__":
@@ -132,6 +141,7 @@ if __name__ == "__main__":
 
     datahandler = Datahandler(training_filename, training_filename)
 
-
-    print(datahandler.get_predictors())
-    print(datahandler.get_targets('tf0'))
+    datahandler.create_submission(iohandler_tf0.load_best_model(), iohandler_ts0.load_best_model())
+    datahandler.plot_data()
+    datahandler.plot_submission()
+    datahandler.plot_all()
