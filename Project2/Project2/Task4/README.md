@@ -5,4 +5,4 @@
 - Find a good optimizer to find the optimal u*
 
 ## Best Model
-[time vs. temperature colored with corresponding velocity](result_4.png)
+![time vs. temperature colored with corresponding velocity](result_4.png)
