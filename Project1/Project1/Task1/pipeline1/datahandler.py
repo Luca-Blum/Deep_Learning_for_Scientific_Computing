@@ -132,6 +132,6 @@ if __name__ == "__main__":
 
     datahandler = Datahandler(training_filename, training_filename)
 
-    datahandler.create_submission(iohandler_tf0.load_best_model(), iohandler_ts0.load_best_model())
 
-    datahandler.plot_all()
+    print(datahandler.get_predictors())
+    print(datahandler.get_targets('tf0'))

@@ -1,8 +1,5 @@
 # Task 1
 
-## Task description
-...
-
 ## Problems overcome
 Build the whole neural network pipeline from scratch:
 - read in training and testing data, preprocess it and transform it to the desired network input type

@@ -2,14 +2,16 @@ import torch
 import torch.nn as nn
 import torch.utils
 import torch.utils.data
+import numpy as np
+from torch.autograd import Variable
 from tqdm import tqdm
 
 # https://blog.floydhub.com/long-short-term-memory-from-zero-to-hero-with-pytorch/
 
-class LSTM(nn.Module):
+class LSTM_stateless(nn.Module):
     def __init__(self, input_size, output_size, hidden_dim, n_layers, drop_prob=0.0, regularization_param=0.0,
                  regularization_exp=2):
-        super(LSTM, self).__init__()
+        super(LSTM_stateless, self).__init__()
 
         self.hidden_dim = hidden_dim
 
@@ -25,17 +27,25 @@ class LSTM(nn.Module):
 
         self.fc = nn.Linear(hidden_dim, output_size)
 
-    def forward(self, x, hidden):
+    def forward(self, x):
+        # Initialize hidden state with zeros
+        h0 = torch.zeros(self.n_layers, x.size(0), self.hidden_dim)
 
-        r_out, hidden = self.lstm(x, hidden)
+        # Initialize cell state
+        c0 = torch.zeros(self.n_layers, x.size(0), self.hidden_dim)
 
-        out_drop = self.dropout(r_out)
+        # One time step
+        # We need to detach as we are doing truncated backpropagation through time (BPTT)
+        # If we don't, we'll backprop all the way to the start even after going through another batch
+        out, (hn, cn) = self.lstm(x, (h0, c0))
 
-        out = out_drop.contiguous().view(-1, self.hidden_dim)
+        out = self.dropout(out)
+
+        out = out.contiguous().view(-1, self.hidden_dim)
 
         output = self.fc(out)
 
-        return output, hidden
+        return output
 
     def init_hidden(self, batch_size, device="cpu"):
         ''' Initializes hidden state '''
@@ -47,6 +57,7 @@ class LSTM(nn.Module):
                   weight.new(self.n_layers, batch_size, self.hidden_dim).zero_().to(device))
 
         return hidden
+
 
 def init_xavier(model, retrain_seed):
     torch.manual_seed(retrain_seed)
@@ -71,8 +82,7 @@ def regularization(model, p):
     return reg_loss
 
 
-
-def fit_custom(model, training_set, validation_set, num_epochs, optimizer, meta, batch_size=1, p=2, output_step=0):
+def fit_stateless(model, training_set, validation_set, num_epochs, optimizer, meta, batch_size=1, p=2, output_step=0):
     """
     Adapted from fit function provided by the Deep Learning for scientific computing team @ ETHZ in FS 2021
     :param model: pytorch neural network
@@ -106,8 +116,6 @@ def fit_custom(model, training_set, validation_set, num_epochs, optimizer, meta,
 
     for epoch in pbar:
 
-        hidden = list([model.init_hidden(batch_size, device)])
-
         running_loss = list([0])
 
         # Loop over batches
@@ -117,13 +125,12 @@ def fit_custom(model, training_set, validation_set, num_epochs, optimizer, meta,
 
             def closure():
 
-                hidden[0] = tuple([each.data for each in hidden[0]])
 
                 # zero the parameter gradients
                 optimizer.zero_grad()
 
                 # forward + backward + optimize
-                u_pred_, hidden[0] = model(x_train_, hidden[0])
+                u_pred_ = model(x_train_)
 
                 # u_pred_ = model(x_train_)
 
@@ -145,21 +152,20 @@ def fit_custom(model, training_set, validation_set, num_epochs, optimizer, meta,
         running_validation_loss = 0
 
         # Iterate over the test data and generate predictions
-        hidden_val = model.init_hidden(1, device)
         for i, data in enumerate(validation_set, 0):
-            hidden_val = tuple([each.data for each in hidden_val])
             # Get inputs
             inputs, targets = data
             inputs = inputs.to(device)
             targets = targets.to(device)
 
             # Generate outputs
-            prediction, hidden_val = model(inputs, hidden_val)
+            prediction = model(inputs)
 
             running_validation_loss += torch.mean((prediction.reshape(-1, )
                                                    - targets.reshape(-1, )) ** p).item() * inputs.size(0)
 
         history[1].append(running_validation_loss / len(validation_set))
+
 
         model.train()
 

@@ -2,14 +2,16 @@ import torch
 import torch.nn as nn
 import torch.utils
 import torch.utils.data
+import numpy as np
+from torch.autograd import Variable
 from tqdm import tqdm
 
 # https://blog.floydhub.com/long-short-term-memory-from-zero-to-hero-with-pytorch/
 
-class LSTM(nn.Module):
+class LSTM2(nn.Module):
     def __init__(self, input_size, output_size, hidden_dim, n_layers, drop_prob=0.0, regularization_param=0.0,
-                 regularization_exp=2):
-        super(LSTM, self).__init__()
+                 regularization_exp=2, batch_size=1):
+        super(LSTM2, self).__init__()
 
         self.hidden_dim = hidden_dim
 
@@ -25,9 +27,16 @@ class LSTM(nn.Module):
 
         self.fc = nn.Linear(hidden_dim, output_size)
 
-    def forward(self, x, hidden):
+        weight = next(self.parameters()).data
 
-        r_out, hidden = self.lstm(x, hidden)
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+        self.hidden = (weight.new(self.n_layers, batch_size, self.hidden_dim).zero_().to(device),
+                       weight.new(self.n_layers, batch_size, self.hidden_dim).zero_().to(device))
+
+    def forward(self, x):
+
+        r_out, self.hidden = self.lstm(x, self.hidden)
 
         out_drop = self.dropout(r_out)
 
@@ -35,18 +44,8 @@ class LSTM(nn.Module):
 
         output = self.fc(out)
 
-        return output, hidden
+        return output
 
-    def init_hidden(self, batch_size, device="cpu"):
-        ''' Initializes hidden state '''
-        # Create two new tensors with sizes n_layers x batch_size x n_hidden,
-        # initialized to zero, for hidden state and cell state of LSTM
-        weight = next(self.parameters()).data
-
-        hidden = (weight.new(self.n_layers, batch_size, self.hidden_dim).zero_().to(device),
-                  weight.new(self.n_layers, batch_size, self.hidden_dim).zero_().to(device))
-
-        return hidden
 
 def init_xavier(model, retrain_seed):
     torch.manual_seed(retrain_seed)
@@ -71,8 +70,7 @@ def regularization(model, p):
     return reg_loss
 
 
-
-def fit_custom(model, training_set, validation_set, num_epochs, optimizer, meta, batch_size=1, p=2, output_step=0):
+def fit_2(model, training_set, validation_set, num_epochs, optimizer, meta, batch_size=1, p=2, output_step=0):
     """
     Adapted from fit function provided by the Deep Learning for scientific computing team @ ETHZ in FS 2021
     :param model: pytorch neural network
@@ -106,8 +104,6 @@ def fit_custom(model, training_set, validation_set, num_epochs, optimizer, meta,
 
     for epoch in pbar:
 
-        hidden = list([model.init_hidden(batch_size, device)])
-
         running_loss = list([0])
 
         # Loop over batches
@@ -116,14 +112,11 @@ def fit_custom(model, training_set, validation_set, num_epochs, optimizer, meta,
             u_train_ = u_train_.to(device)
 
             def closure():
-
-                hidden[0] = tuple([each.data for each in hidden[0]])
-
                 # zero the parameter gradients
                 optimizer.zero_grad()
 
                 # forward + backward + optimize
-                u_pred_, hidden[0] = model(x_train_, hidden[0])
+                u_pred_ = model(x_train_)
 
                 # u_pred_ = model(x_train_)
 
@@ -145,16 +138,14 @@ def fit_custom(model, training_set, validation_set, num_epochs, optimizer, meta,
         running_validation_loss = 0
 
         # Iterate over the test data and generate predictions
-        hidden_val = model.init_hidden(1, device)
         for i, data in enumerate(validation_set, 0):
-            hidden_val = tuple([each.data for each in hidden_val])
             # Get inputs
             inputs, targets = data
             inputs = inputs.to(device)
             targets = targets.to(device)
 
             # Generate outputs
-            prediction, hidden_val = model(inputs, hidden_val)
+            prediction = model(inputs)
 
             running_validation_loss += torch.mean((prediction.reshape(-1, )
                                                    - targets.reshape(-1, )) ** p).item() * inputs.size(0)

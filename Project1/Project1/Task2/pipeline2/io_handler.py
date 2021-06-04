@@ -8,6 +8,16 @@ import torch
 
 class IOHandler:
     def __init__(self, name: str):
+        """
+        IO handler to store and load the currently best model that is running, the best model overall
+        and log files for the corresponding parameters of the models and losses
+
+        Every output is stored in a subfolder of the folder "output"
+        The folder "output" contains subfolders for every newly specified iohandler name.
+        This subfolder contains a "log" folder which stores the parameters and losses of every tested model.
+        Additionally the subfolder contains the overall best model and the currently running best model
+        and the corresponding parameters and losses
+        """
 
         self.name = name
 
@@ -47,8 +57,14 @@ class IOHandler:
         self.validation_loss_running = np.finfo(float).max
 
     def write_running(self, training_loss, validation_loss, configuration, model):
+        """
+        Create new log file for the following training cycle
+        :param training_loss: loss of training set
+        :param validation_loss: loss of validation set
+        :param configuration: configuration parameters
+        :param model: neural network
+        """
 
-        # Create new log file for the following training cycle
         if self.new_training_cycle:
             self.new_training_cycle = False
 
@@ -89,6 +105,10 @@ class IOHandler:
             torch.save(model, self.best_running_model_path)
 
     def finalize(self):
+        """
+        Finalizes the current test run. Compares the current best model with the past best model
+        and updates it if necessary.
+        """
 
         self.new_training_cycle = True
 
@@ -116,47 +136,25 @@ class IOHandler:
                     f_best.write("Training and validation loss of the best model\n\n")
                     f_best.write(f_run.read())
 
-            # Store new best model
-            torch.save(torch.load(self.best_running_model_path), self.best_model_path)
+                # Store new best model
+                torch.save(torch.load(self.best_running_model_path), self.best_model_path)
 
     def load_best_model(self):
+        """
+        :return: best tested model
+        """
         print("loading from: ", self.best_model_path)
         return torch.load(self.best_model_path)
 
+    def load_best_running_model(self):
+        """
+        :return: best tested model of the current testing run
+        """
+        print("loading from: ", self.best_running_model_path)
+        return torch.load(self.best_running_model_path)
+
     def get_name(self):
+        """
+        :return: name of handler
+        """
         return self.name
-    """
-    run_dd:mm:yy_hh:mm:ss.txt:
-            file for run_configuration to write down all parameters and corresponding losses
-
-    running_best_model.pt OTF
-        file to store the best currently running model
-    best_model.pt OTF
-        file to store the best overall model
-        
-    loss_running_best_model.txt
-        file for run_configuration to write down the current best running model(param + losses). 
- 
-    loss_best_model.txt
-        file to write down the best model overall (param + losses). 
-    """
-
-
-if __name__ == '__main__':
-    network_properties = {
-        "hidden_layers": 16,
-        "neurons": 40,
-        "regularization_exp": 2,
-        "regularization_param": 0,
-        "batch_size": 20,
-        "epochs": 100,
-        "optimizer": "LBFGS",
-        "init_weight_seed": 567
-    }
-
-    iohandler = IOHandler('ts0')
-    iohandler.write_running(0, 0, {'test': 0}, None)
-    iohandler.finalize()
-    m = iohandler.load_best_model()
-
-    print(m)

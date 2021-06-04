@@ -31,7 +31,7 @@ class Datahandler:
         self.ts0_training = self.training_df['ts0'].values.astype(np.float32)
         self.t_training = torch.tensor(self.training_df['t'].values.astype(np.float32).reshape((-1, 1)))
 
-        self.train_window = 25
+        self.train_window = 17
         self.prediction_offset = 1
 
         if self.train_window <= self.prediction_offset:
@@ -132,8 +132,6 @@ class Datahandler:
         predictions_tf0 = []
         predictions_ts0 = []
 
-        print(self.t_testing)
-
         for t in self.t_testing:
 
             hidden_tf0 = tuple([each.data for each in hidden_tf0])
@@ -141,8 +139,38 @@ class Datahandler:
             predictions_tf0.append(previous_tf0.detach().numpy()[0, 0])
 
             hidden_ts0 = tuple([each.data for each in hidden_ts0])
-            previous_ts0, hidden_ts0 = model_tf0(t, hidden_ts0)
+            previous_ts0, hidden_ts0 = model_ts0(t, hidden_ts0)
             predictions_ts0.append(previous_ts0.detach().numpy()[0, 0])
+
+        self.submission['tf0'] = np.array(predictions_tf0)
+        self.submission['ts0'] = np.array(predictions_ts0)
+
+        self.submission['tf0'] = self.tf0_scaler.inverse_transform(self.submission[['tf0']])
+        self.submission['ts0'] = self.ts0_scaler.inverse_transform(self.submission[['ts0']])
+
+        self.submission.to_csv(self.output_path, index=False)
+
+    def create_submission_stateless(self, model_tf0, model_ts0):
+
+        if self.output_path is None:
+            raise ValueError("testing file was not specified during initialization")
+
+        """
+        Creates prediction for Testing data with trained model and writes result to text file
+        """
+
+        predictions_tf0 = []
+        predictions_ts0 = []
+
+        last_tf0 = torch.FloatTensor([self.tf0_training[-self.train_window:]]).reshape((-1, 1))
+        last_ts0 = torch.FloatTensor([self.ts0_training[-self.train_window:]]).reshape((-1, 1))
+
+        for t in self.t_testing:
+            last_tf0 = model_tf0(last_tf0.reshape((-1, 1, 1)))
+            predictions_tf0.append(last_tf0.detach().numpy()[-1, 0])
+
+            last_ts0 = model_ts0(last_ts0.reshape((-1, 1, 1)))
+            predictions_ts0.append(last_ts0.detach().numpy()[-1, 0])
 
         self.submission['tf0'] = np.array(predictions_tf0)
         self.submission['ts0'] = np.array(predictions_ts0)
@@ -158,6 +186,7 @@ class Datahandler:
         prime = self.get_raw(target_type)
 
         hidden = model.init_hidden(1)
+        out = 0
         for x in prime:
             feature = torch.from_numpy(np.array([[[x]]]))
             hidden = tuple([each.data for each in hidden])
@@ -166,8 +195,12 @@ class Datahandler:
         return out, hidden
 
     def plot_data(self):
-        plt.plot(self.t_training, self.tf0_scaler.inverse_transform(self.tfo_training.detach().numpy()), label="tf0")
-        plt.plot(self.t_training, self.ts0_scaler.inverse_transform(self.tso_training.detach().numpy()), label="ts0")
+
+        tf0 = self.tf0_scaler.inverse_transform(self.training_df[['tf0']])
+        ts0 = self.ts0_scaler.inverse_transform(self.training_df[['ts0']])
+
+        plt.plot(self.t_training, tf0, label="tf0")
+        plt.plot(self.t_training, ts0, label="ts0")
         plt.legend()
         plt.xlabel("x")
         plt.ylabel("y")
@@ -196,11 +229,6 @@ class Datahandler:
         plt.ylabel("y")
         plt.show()
 
-        """
-        sub_tf0 = torch.tensor(self.submission['tf0'].values.astype(np.float32).reshape((-1, 1)))
-        print(torch.mean((sub_tf0.reshape(-1, ) - self.tfo_training.reshape(-1, )) ** 2))
-        """
-
 
 if __name__ == "__main__":
 
@@ -212,8 +240,8 @@ if __name__ == "__main__":
     testing_filename = path.abspath(path.join(dirname, "..", "data", "TestingData.txt"))
     training_filename = path.abspath(path.join(dirname, "..", "data", "TrainingData.txt"))
 
-    datahandler = Datahandler(training_filename, training_filename)
+    datahandler = Datahandler(training_filename, testing_filename)
 
-    datahandler.create_submission(iohandler_tf0.load_best_model(), iohandler_ts0.load_best_model())
+    datahandler.create_submission(iohandler_tf0.load_best_running_model(), iohandler_ts0.load_best_running_model())
 
     datahandler.plot_all()

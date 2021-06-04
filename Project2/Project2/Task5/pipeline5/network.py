@@ -4,51 +4,66 @@ import torch.utils
 import torch.utils.data
 from tqdm import tqdm
 
-# https://blog.floydhub.com/long-short-term-memory-from-zero-to-hero-with-pytorch/
 
-class LSTM(nn.Module):
-    def __init__(self, input_size, output_size, hidden_dim, n_layers, drop_prob=0.0, regularization_param=0.0,
-                 regularization_exp=2):
-        super(LSTM, self).__init__()
-
-        self.hidden_dim = hidden_dim
-
-        self.n_layers = n_layers
-        #
+class Network1(nn.Module):
+    def __init__(self, input_dimension, output_dimension, n_hidden_layers, neurons, regularization_param,
+                 regularization_exp, activation=nn.ReLU(), dropout=0.0):
+        """
+        Creating a pytorch dense neural network
+        :param input_dimension: dimension of the predictors
+        :param output_dimension: dimension of the target
+        :param n_hidden_layers: number of hidden layers
+        :param neurons: number of neurons in each hidden layer
+        :param regularization_param: strength of regularization
+        :param regularization_exp: norm for regularization
+        :param activation: activation function
+        :param dropout: strength of dropout
+        """
+        super(Network1, self).__init__()
+        # Number of input dimensions n
+        self.input_dimension = input_dimension
+        # Number of output dimensions m
+        self.output_dimension = output_dimension
+        # Number of neurons per layer
+        self.neurons = neurons
+        # Number of hidden layers
+        self.n_hidden_layers = n_hidden_layers
+        # Activation function
+        self.activation = activation
+        # strength of regularization
         self.regularization_param = regularization_param
-        #
+        # exponent of the regularization (p-norm)
         self.regularization_exp = regularization_exp
+        # dropout layer
+        self.dropout = nn.Dropout(dropout)
+        # input layer
+        self.input_layer = nn.Linear(self.input_dimension, self.neurons)
+        # hidden layers
+        self.hidden_layers = nn.ModuleList([nn.Linear(self.neurons, self.neurons) for _ in range(n_hidden_layers)])
+        # output layers
+        self.output_layer = nn.Linear(self.neurons, self.output_dimension)
 
-        self.lstm = nn.LSTM(input_size, hidden_dim, n_layers, batch_first=True)
+    def forward(self, x):
+        """
+        Performs forward pass through the netwokr
+        :param x: features
+        :return: output of the model
+        """
 
-        self.dropout = nn.Dropout(drop_prob)
+        x = self.activation(self.input_layer(x))
+        for k, l in enumerate(self.hidden_layers):
+            x = self.activation(l(x))
+            x = self.dropout(x)
+        return self.output_layer(x)
 
-        self.fc = nn.Linear(hidden_dim, output_size)
-
-    def forward(self, x, hidden):
-
-        r_out, hidden = self.lstm(x, hidden)
-
-        out_drop = self.dropout(r_out)
-
-        out = out_drop.contiguous().view(-1, self.hidden_dim)
-
-        output = self.fc(out)
-
-        return output, hidden
-
-    def init_hidden(self, batch_size, device="cpu"):
-        ''' Initializes hidden state '''
-        # Create two new tensors with sizes n_layers x batch_size x n_hidden,
-        # initialized to zero, for hidden state and cell state of LSTM
-        weight = next(self.parameters()).data
-
-        hidden = (weight.new(self.n_layers, batch_size, self.hidden_dim).zero_().to(device),
-                  weight.new(self.n_layers, batch_size, self.hidden_dim).zero_().to(device))
-
-        return hidden
 
 def init_xavier(model, retrain_seed):
+    """
+    initializes the weights of the model with the xavier uniform distribution
+    :param model: neural network for initialization of weights
+    :param retrain_seed: torch seed for random number generator
+    :return: None
+    """
     torch.manual_seed(retrain_seed)
 
     def init_weights(m):
@@ -62,6 +77,11 @@ def init_xavier(model, retrain_seed):
 
 
 def regularization(model, p):
+    """
+    :param model: neural network for regularization
+    :param p: norm used for regularization
+    :return: regularization loss
+    """
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     reg_loss = torch.tensor(0.).to(device)
@@ -71,12 +91,12 @@ def regularization(model, p):
     return reg_loss
 
 
-
-def fit_custom(model, training_set, validation_set, num_epochs, optimizer, meta, batch_size=1, p=2, output_step=0):
+def fit_custom(model, training_set, validation_set, num_epochs, optimizer, meta, p=2, output_step=0):
     """
     Adapted from fit function provided by the Deep Learning for scientific computing team @ ETHZ in FS 2021
     :param model: pytorch neural network
     :param training_set:  compatible pytorch tensor to train model
+    :param validation_set: compatible pytorch tensor to evaluate model
     :param num_epochs: number of epochs to train model
     :param optimizer: type of optimizer [torch.optim.Adam, torch.optim.LBFGS]
     :param meta: dictionary with    total number of configurations to run,
@@ -106,8 +126,6 @@ def fit_custom(model, training_set, validation_set, num_epochs, optimizer, meta,
 
     for epoch in pbar:
 
-        hidden = list([model.init_hidden(batch_size, device)])
-
         running_loss = list([0])
 
         # Loop over batches
@@ -116,17 +134,10 @@ def fit_custom(model, training_set, validation_set, num_epochs, optimizer, meta,
             u_train_ = u_train_.to(device)
 
             def closure():
-
-                hidden[0] = tuple([each.data for each in hidden[0]])
-
                 # zero the parameter gradients
                 optimizer.zero_grad()
-
                 # forward + backward + optimize
-                u_pred_, hidden[0] = model(x_train_, hidden[0])
-
-                # u_pred_ = model(x_train_)
-
+                u_pred_ = model(x_train_)
                 loss_u = torch.mean((u_pred_.reshape(-1, ) - u_train_.reshape(-1, )) ** p)
                 loss_reg = regularization(model, regularization_exp)
                 loss = loss_u + regularization_param * loss_reg
@@ -137,7 +148,7 @@ def fit_custom(model, training_set, validation_set, num_epochs, optimizer, meta,
 
             optimizer.step(closure=closure)
 
-        history[0].append(running_loss[0] / len(training_set))
+        history[0].append(running_loss[0] / len(training_set.sampler))
 
         # Evaluation
         model.eval()
@@ -145,27 +156,24 @@ def fit_custom(model, training_set, validation_set, num_epochs, optimizer, meta,
         running_validation_loss = 0
 
         # Iterate over the test data and generate predictions
-        hidden_val = model.init_hidden(1, device)
         for i, data in enumerate(validation_set, 0):
-            hidden_val = tuple([each.data for each in hidden_val])
             # Get inputs
             inputs, targets = data
             inputs = inputs.to(device)
             targets = targets.to(device)
 
             # Generate outputs
-            prediction, hidden_val = model(inputs, hidden_val)
+            prediction = model(inputs)
 
             running_validation_loss += torch.mean((prediction.reshape(-1, )
                                                    - targets.reshape(-1, )) ** p).item() * inputs.size(0)
 
-        history[1].append(running_validation_loss / len(validation_set))
+        history[1].append(running_validation_loss / len(validation_set.sampler))
 
         model.train()
 
         if output_step != 0 and epoch % output_step == 0:
             pbar.set_postfix({'Training loss': history[0][-1], 'Validation loss': history[1][-1]})
-
 
     '''
     # Plot trainings process
