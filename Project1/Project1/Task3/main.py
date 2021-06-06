@@ -9,7 +9,7 @@ from pipeline3 import Datahandler, LSTM, init_xavier, fit_custom, IOHandler, LST
 from os import path
 
 
-def run_configuration(conf_dict, x, y, meta_info, io_handler, k_folds=2):
+def run_configuration(conf_dict, x, y, meta_info, io_handler, k_folds=5):
     """
     run a k-fold cross validation with a given set of parameters
     :param conf_dict: contains the parameters for the network and the training
@@ -99,9 +99,9 @@ def run_configuration(conf_dict, x, y, meta_info, io_handler, k_folds=2):
     meta_info['total_folds'] = k_folds
     meta_info['current_fold'] = 0
 
-    incr = 0.1 / k_folds
+    incr = 0.5 / k_folds
 
-    splits = [0.9 + (fold+1) * incr for fold in range(k_folds)]
+    splits = [0.5 + (fold+1) * incr for fold in range(k_folds)]
 
     for i, split in enumerate(splits):
 
