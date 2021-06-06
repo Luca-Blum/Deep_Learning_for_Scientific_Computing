@@ -1,5 +1,5 @@
 # Task 2
-Given are three training set that consists of eight physical properties, and the capacity factor as target variable.
+There are three training sets where each consists of eight physical properties, and the capacity factor as target variable.
 The three training sets are created from a PDE solver with different level of accuracy.
 Therefore we have a set with high accuracy but with only a few sample, a set with intermediate accuracy and intermediate number of samples
 and a set with low accuracy but with many samples. 
