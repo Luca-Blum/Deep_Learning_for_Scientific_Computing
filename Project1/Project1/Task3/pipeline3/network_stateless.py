@@ -2,15 +2,13 @@ import torch
 import torch.nn as nn
 import torch.utils
 import torch.utils.data
-import numpy as np
-from torch.autograd import Variable
 from tqdm import tqdm
 
-# https://blog.floydhub.com/long-short-term-memory-from-zero-to-hero-with-pytorch/
 
 class LSTM_stateless(nn.Module):
-    def __init__(self, input_size, output_size, hidden_dim, n_layers, drop_prob=0.0, regularization_param=0.0,
-                 regularization_exp=2):
+    def __init__(self, input_size, output_size, hidden_dim, n_layers, regularization_param=0.0,
+                 regularization_exp=2, activation=nn.CELU(), dropout=0.0):
+
         super(LSTM_stateless, self).__init__()
 
         self.hidden_dim = hidden_dim
@@ -23,11 +21,21 @@ class LSTM_stateless(nn.Module):
 
         self.lstm = nn.LSTM(input_size, hidden_dim, n_layers, batch_first=True)
 
-        self.dropout = nn.Dropout(drop_prob)
+        self.dropout = nn.Dropout(dropout)
+
+        self.fc_1 = nn.Linear(hidden_dim, hidden_dim)
 
         self.fc = nn.Linear(hidden_dim, output_size)
 
+        # Activation function
+        self.activation = activation
+
     def forward(self, x):
+        """
+        Performs forward pass through the netwokr
+        :param x: features
+        :return: output of the model
+        """
         # Initialize hidden state with zeros
         h0 = torch.zeros(self.n_layers, x.size(0), self.hidden_dim)
 
@@ -43,14 +51,19 @@ class LSTM_stateless(nn.Module):
 
         out = out.contiguous().view(-1, self.hidden_dim)
 
+        out = self.activation(out)
+
+        out = self.fc_1(out)
+
+        out = self.activation(out)
+
         output = self.fc(out)
 
         return output
 
     def init_hidden(self, batch_size, device="cpu"):
         ''' Initializes hidden state '''
-        # Create two new tensors with sizes n_layers x batch_size x n_hidden,
-        # initialized to zero, for hidden state and cell state of LSTM
+
         weight = next(self.parameters()).data
 
         hidden = (weight.new(self.n_layers, batch_size, self.hidden_dim).zero_().to(device),
@@ -60,6 +73,12 @@ class LSTM_stateless(nn.Module):
 
 
 def init_xavier(model, retrain_seed):
+    """
+    initializes the weights of the model with the xavier uniform distribution
+    :param model: neural network for initialization of weights
+    :param retrain_seed: torch seed for random number generator
+    :return: None
+    """
     torch.manual_seed(retrain_seed)
 
     def init_weights(m):
@@ -73,6 +92,11 @@ def init_xavier(model, retrain_seed):
 
 
 def regularization(model, p):
+    """
+    :param model: neural network for regularization
+    :param p: norm used for regularization
+    :return: regularization loss
+    """
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     reg_loss = torch.tensor(0.).to(device)
@@ -139,7 +163,7 @@ def fit_stateless(model, training_set, validation_set, num_epochs, optimizer, me
                 loss = loss_u + regularization_param * loss_reg
                 loss.backward()
                 # Compute average training loss over batches for the current epoch
-                running_loss[0] += loss.item() * x_train_.size(0)
+                running_loss[0] += loss.item() # * x_train_.size(0)
                 return loss
 
             optimizer.step(closure=closure)
@@ -162,7 +186,7 @@ def fit_stateless(model, training_set, validation_set, num_epochs, optimizer, me
             prediction = model(inputs)
 
             running_validation_loss += torch.mean((prediction.reshape(-1, )
-                                                   - targets.reshape(-1, )) ** p).item() * inputs.size(0)
+                                                   - targets.reshape(-1, )) ** p).item() # * inputs.size(0)
 
         history[1].append(running_validation_loss / len(validation_set))
 

@@ -39,7 +39,7 @@ class Datahandler:
         basepath = path.dirname(__file__)
 
         output_dir_path = path.abspath(path.join(basepath, "..", "submission"))
-        self.output_path = path.join(output_dir_path, "submission.txt")
+        self.output_path = path.join(output_dir_path, "task5_submission.txt")
 
         self.submission = pd.DataFrame(columns=['D', 'v'])
 
@@ -71,6 +71,8 @@ class Datahandler:
         seed = 0
 
         cf_ref_scaled = self.cf_scaler.transform([[cf_ref]])[0, 0]
+
+        model.eval()
 
         # take average of different seeds
         pbar = tqdm(total=samples, desc=f"optimizing to create {samples} samples")
@@ -117,6 +119,7 @@ class Datahandler:
             seed += 1
 
         pbar.close()
+        model.train()
 
         print("CF mean: ", np.mean(cf_values))
 

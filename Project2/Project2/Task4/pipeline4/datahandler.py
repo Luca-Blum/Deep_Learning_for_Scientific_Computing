@@ -49,7 +49,7 @@ class Datahandler:
             basepath = path.dirname(__file__)
 
             output_dir_path = path.abspath(path.join(basepath, "..", "submission"))
-            self.output_path = path.join(output_dir_path, "submission.txt")
+            self.output_path = path.join(output_dir_path, "task4_submission.txt")
 
             # Create directory for submission
             if not Path(output_dir_path).is_dir():
@@ -80,6 +80,7 @@ class Datahandler:
         # take average of different seeds
         pbar = tqdm(total=iterations, desc=f"find optimal velocity")
 
+        model.eval()
         for seed in range(iterations):
 
             torch.manual_seed(seed)
@@ -123,6 +124,8 @@ class Datahandler:
                 print("u_opt unscaled", u_opt)
 
         pbar.close()
+        model.train()
+
         print("optimal velocity: ", np.mean(u_opts))
 
         self.submission['u'] = np.mean(u_opts)
@@ -238,7 +241,8 @@ class Datahandler:
 
         handles, labels = plt.gca().get_legend_handles_labels()
         order = [1, 2, 3, 4, 5, 6, 7, 8, 0, 9]
-        ax.legend([handles[idx] for idx in order], [labels[idx] for idx in order], loc='center left', bbox_to_anchor=(1, 0.5))
+        ax.legend([handles[idx] for idx in order], [labels[idx] for idx in order],
+                  loc='center left', bbox_to_anchor=(1, 0.5))
 
         ax.set_xlabel("Time")
         ax.set_ylabel("Temperature")

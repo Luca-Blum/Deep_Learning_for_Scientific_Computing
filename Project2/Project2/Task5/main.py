@@ -184,15 +184,15 @@ if __name__ == "__main__":
     ioh = IOHandler('task5')
 
     properties = {
-        "hidden_layers": [4],
-        "neurons": [100],
+        "hidden_layers": [ 8],
+        "neurons": [180],
         "regularization_exp": [1],
-        "regularization_param": [0],
-        "batch_size": [16],
+        "regularization_param": [1e-5],
+        "batch_size": [8],
         "epochs": [1000],
         "optimizer": ["ADAM"],
-        "init_weight_seed": [70],
-        "activation": ['relu', 'tanh', 'sigmoid'],
+        "init_weight_seed": [39],
+        "activation": ['tanh'],
         "dropout": [0.0]
     }
 

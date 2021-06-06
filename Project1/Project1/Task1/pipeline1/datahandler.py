@@ -45,7 +45,7 @@ class Datahandler:
             basepath = path.dirname(__file__)
 
             output_dir_path = path.abspath(path.join(basepath, "..", "submission"))
-            self.output_path = path.join(output_dir_path, "submission.txt")
+            self.output_path = path.join(output_dir_path, "task1_submission.txt")
 
             # Create directory for submission
             if not Path(output_dir_path).is_dir():
@@ -73,15 +73,19 @@ class Datahandler:
         if model_tf0 is None or model_ts0 is None:
             raise ValueError("please provide valid models")
 
+        model_tf0.eval()
+        model_ts0.eval()
         predictions_tf0 = model_tf0(self.t_testing)
         predictions_ts0 = model_ts0(self.t_testing)
+        model_tf0.train()
+        model_ts0.train()
 
         self.submission['tf0'] = predictions_tf0.detach().numpy()
 
         self.submission['ts0'] = predictions_ts0.detach().numpy()
 
-        self.submission['tf0'] = self.tf0_scaler.inverse_transform(self.submission['tf0'])
-        self.submission['ts0'] = self.ts0_scaler.inverse_transform(self.submission['ts0'])
+        self.submission['tf0'] = self.tf0_scaler.inverse_transform(self.submission[['tf0']])
+        self.submission['ts0'] = self.ts0_scaler.inverse_transform(self.submission[['ts0']])
 
         self.submission.to_csv(self.output_path, index=False)
 
@@ -113,14 +117,30 @@ class Datahandler:
         plt.ylabel("Temperature")
         plt.show()
 
-    def plot_all(self):
+    def plot_all(self, model_tf0, model_ts0):
         """
         plot training time vs training temperature fluid and training time vs training temperature solid
         plot testing time vs predicted temperature of solid and fluid
         """
 
-        plt.plot(self.t_training, self.tf0_scaler.inverse_transform(self.tfo_training.detach().numpy()), label="Training tf0")
-        plt.plot(self.t_training, self.ts0_scaler.inverse_transform(self.tso_training.detach().numpy()), label="Training ts0")
+        model_tf0.eval()
+        model_ts0.eval()
+        predictions_tf0 = model_tf0(self.t_training)
+        predictions_ts0 = model_ts0(self.t_training)
+        model_tf0.train()
+        model_ts0.train()
+
+        plt.plot(self.t_training, self.tf0_scaler.inverse_transform(self.tfo_training.detach().numpy()),
+                 label="Training tf0")
+        plt.plot(self.t_training, self.ts0_scaler.inverse_transform(self.tso_training.detach().numpy()),
+                 label="Training ts0")
+        """
+        plt.plot(self.t_training, self.tf0_scaler.inverse_transform(predictions_tf0.detach().numpy()), 
+                 label="Predicted Training tf0", marker="+")
+        plt.plot(self.t_training, self.ts0_scaler.inverse_transform(predictions_ts0.detach().numpy()), 
+                 label="Predicted Training ts0", marker="+")
+        """
+
         plt.plot(self.t_testing, self.submission['tf0'].values, label="Predicted tf0")
         plt.plot(self.t_testing, self.submission['ts0'].values, label="Predicted ts0")
         plt.legend()
@@ -139,9 +159,9 @@ if __name__ == "__main__":
     testing_filename = path.abspath(path.join(dirname, "..", "data", "TestingData.txt"))
     training_filename = path.abspath(path.join(dirname, "..", "data", "TrainingData.txt"))
 
-    datahandler = Datahandler(training_filename, training_filename)
+    datahandler = Datahandler(training_filename, testing_filename)
 
     datahandler.create_submission(iohandler_tf0.load_best_model(), iohandler_ts0.load_best_model())
-    datahandler.plot_data()
+
     datahandler.plot_submission()
-    datahandler.plot_all()
+    datahandler.plot_all(iohandler_tf0.load_best_model(), iohandler_ts0.load_best_model())

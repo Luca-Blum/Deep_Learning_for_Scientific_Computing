@@ -143,12 +143,12 @@ def fit_custom(model, training_set, validation_set, num_epochs, optimizer, meta,
                 loss = loss_u + regularization_param * loss_reg
                 loss.backward()
                 # Compute average training loss over batches for the current epoch
-                running_loss[0] += loss.item() * x_train_.size(0)
+                running_loss[0] += loss.item() # * x_train_.size(0)
                 return loss
 
             optimizer.step(closure=closure)
 
-        history[0].append(running_loss[0] / len(training_set.sampler))
+        history[0].append(running_loss[0] / len(training_set))
 
         # Evaluation
         model.eval()
@@ -166,9 +166,9 @@ def fit_custom(model, training_set, validation_set, num_epochs, optimizer, meta,
             prediction = model(inputs)
 
             running_validation_loss += torch.mean((prediction.reshape(-1, )
-                                                   - targets.reshape(-1, )) ** p).item() * inputs.size(0)
+                                                   - targets.reshape(-1, )) ** p).item() # * inputs.size(0)
 
-        history[1].append(running_validation_loss / len(validation_set.sampler))
+        history[1].append(running_validation_loss / len(validation_set))
 
         model.train()
 

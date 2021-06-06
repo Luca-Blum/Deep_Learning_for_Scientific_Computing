@@ -1,15 +1,15 @@
 import torch
 import numpy as np
-from torch import optim
+from torch import optim, nn
 from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
 import itertools
 from sklearn.model_selection import KFold, train_test_split
-from pipeline3 import Datahandler, LSTM, init_xavier, fit_custom, IOHandler, LSTM_stateless
+from pipeline3 import Datahandler, LSTM, init_xavier, fit_custom, IOHandler, LSTM_stateless, fit_stateless, RNN, GRU
 from os import path
 
 
-def run_configuration(conf_dict, x, y, meta_info, io_handler, k_folds=5):
+def run_configuration(conf_dict, x, y, meta_info, io_handler, k_folds=2):
     """
     run a k-fold cross validation with a given set of parameters
     :param conf_dict: contains the parameters for the network and the training
@@ -20,8 +20,6 @@ def run_configuration(conf_dict, x, y, meta_info, io_handler, k_folds=5):
     :param k_folds: number of folds for cross validation
     :return: training loss and validation loss
     Adapted from skeleton code from Deep Learning for Scientific Computing lecture @ ETHZ in FS2021
-
-    https://blog.floydhub.com/long-short-term-memory-from-zero-to-hero-with-pytorch/
     """
 
     # Set random seed for reproducibility
@@ -37,15 +35,53 @@ def run_configuration(conf_dict, x, y, meta_info, io_handler, k_folds=5):
     regularization_exp = conf_dict["regularization_exp"]
     retrain = conf_dict["init_weight_seed"]
     batch_size = conf_dict["batch_size"]
+    activation_type = conf_dict["activation"]
+    dropout = conf_dict["dropout"]
+    state = conf_dict["state"]
 
-    model = LSTM(input_size=1,
-                 output_size=1,
-                 hidden_dim=neurons,
-                 n_layers=n_hidden_layers,
-                 regularization_param=regularization_param,
-                 regularization_exp=regularization_exp)
+    if activation_type == "sigmoid":
+        activation = nn.Sigmoid()
+    elif activation_type == "tanh":
+        activation = nn.Tanh()
+    else:
+        activation = nn.ReLU()
 
-    # Xavier weight initialization
+    if state == "stateless":
+        model = LSTM_stateless(input_size=1,
+                               output_size=1,
+                               hidden_dim=neurons,
+                               n_layers=n_hidden_layers,
+                               regularization_param=regularization_param,
+                               regularization_exp=regularization_exp,
+                               activation=activation,
+                               dropout=dropout)
+    elif state == "rnn":
+        model = RNN(input_size=1,
+                               output_size=1,
+                               hidden_dim=neurons,
+                               n_layers=n_hidden_layers,
+                               regularization_param=regularization_param,
+                               regularization_exp=regularization_exp,
+                               activation=activation,
+                               dropout=dropout)
+    elif state == "gru":
+        model = GRU(input_size=1,
+                               output_size=1,
+                               hidden_dim=neurons,
+                               n_layers=n_hidden_layers,
+                               regularization_param=regularization_param,
+                               regularization_exp=regularization_exp,
+                               activation=activation,
+                               dropout=dropout)
+    else:
+        model = LSTM(input_size=1,
+                     output_size=1,
+                     hidden_dim=neurons,
+                     n_layers=n_hidden_layers,
+                     regularization_param=regularization_param,
+                     regularization_exp=regularization_exp,
+                     activation=activation,
+                     dropout=dropout)
 
     if opt_type == "ADAM":
         optimizer_ = optim.Adam(model.parameters(), lr=0.0001)
@@ -63,9 +99,9 @@ def run_configuration(conf_dict, x, y, meta_info, io_handler, k_folds=5):
     meta_info['total_folds'] = k_folds
     meta_info['current_fold'] = 0
 
-    incr = 0.5 / k_folds
+    incr = 0.1 / k_folds
 
-    splits = [0.5 + (fold+1) * incr for fold in range(k_folds)]
+    splits = [0.9 + (fold+1) * incr for fold in range(k_folds)]
 
     for i, split in enumerate(splits):
 
@@ -87,10 +123,14 @@ def run_configuration(conf_dict, x, y, meta_info, io_handler, k_folds=5):
 
         init_xavier(model, retrain)
 
-        fold_training_loss, fold_validation_loss = fit_custom(model, training_set, validation_set,
-                                                              n_epochs, optimizer_, meta_info, batch_size=batch_size,
-                                                              p=2,
-                                                              output_step=1)
+        if state in ["stateless", "rnn", "gru"]:
+            fold_training_loss, fold_validation_loss = fit_stateless(model, training_set, validation_set, n_epochs,
+                                                                     optimizer_, meta_info, batch_size=batch_size,
+                                                                     p=2, output_step=1)
+        else:
+            fold_training_loss, fold_validation_loss = fit_custom(model, training_set, validation_set, n_epochs,
+                                                                  optimizer_, meta_info, batch_size=batch_size,
+                                                                  p=2, output_step=1)
 
         training_loss_total += fold_training_loss
         validation_loss_total += fold_validation_loss
@@ -112,18 +152,13 @@ def run_configuration(conf_dict, x, y, meta_info, io_handler, k_folds=5):
     return training_loss_total, validation_loss_total
 
 
-def train_predictor(iohandler):
-
-    network_properties = {
-        "hidden_layers": [16],
-        "neurons": [32],
-        "regularization_exp": [2],
-        "regularization_param": [1e-5],
-        "batch_size": [2],
-        "epochs": [200],
-        "optimizer": ["ADAM"],
-        "init_weight_seed": [70]
-    }
+def train_predictor(iohandler, network_properties, debug=False):
+    """
+    :param iohandler: handler for the input and output of the models
+    :param network_properties: dictionary of different configurations
+    :param debug: plot losses of different configurations
+    :return: trains the NN with the given configurations and calculates the training and validation loss
+    """
 
     settings = list(itertools.product(*network_properties.values()))
 
@@ -144,7 +179,10 @@ def train_predictor(iohandler):
             "batch_size": setup[4],
             "epochs": setup[5],
             "optimizer": setup[6],
-            "init_weight_seed": setup[7]
+            "init_weight_seed": setup[7],
+            "activation": setup[8],
+            "dropout": setup[9],
+            "state": setup[10]
         }
 
         meta['current_conf'] = set_num
@@ -165,14 +203,15 @@ def train_predictor(iohandler):
     train_err_conf = np.array(train_err_conf)
     val_err_conf = np.array(val_err_conf)
 
-    configuration_number = np.linspace(start=0.0, stop=len(train_err_conf), num=len(train_err_conf), endpoint=False)
+    if debug:
+        configuration_number = np.linspace(start=0.0, stop=len(train_err_conf), num=len(train_err_conf), endpoint=False)
 
-    plt.plot(configuration_number, train_err_conf, label="Training Error")
-    plt.plot(configuration_number, val_err_conf, label="Validation Error")
-    plt.legend()
-    plt.xlabel("Configuration")
-    plt.ylabel("Loss")
-    # plt.show()
+        plt.plot(configuration_number, train_err_conf, label="Training Error")
+        plt.plot(configuration_number, val_err_conf, label="Validation Error")
+        plt.legend()
+        plt.xlabel("Configuration")
+        plt.ylabel("Loss")
+        plt.show()
 
 
 if __name__ == "__main__":
@@ -186,7 +225,35 @@ if __name__ == "__main__":
     iohandler_tf0 = IOHandler('tf0')
     iohandler_ts0 = IOHandler('ts0')
 
-    train_predictor(iohandler_tf0)
-    train_predictor(iohandler_ts0)
+    network_properties_tf0 = {
+        "hidden_layers": [4],
+        "neurons": [100],
+        "regularization_exp": [2],
+        "regularization_param": [1e-5],
+        "batch_size": [1],
+        "epochs": [100],
+        "optimizer": ["ADAM"],
+        "init_weight_seed": [34],
+        "activation": ['relu'],
+        "dropout": [0.0],
+        "state": ['stateful']
+    }
 
-    datahandler.create_submission_stateless(iohandler_tf0.load_best_model(), iohandler_ts0.load_best_model())
+    network_properties_ts0 = {
+        "hidden_layers": [4],
+        "neurons": [100],
+        "regularization_exp": [2],
+        "regularization_param": [0],
+        "batch_size": [1],
+        "epochs": [100],
+        "optimizer": ["ADAM"],
+        "init_weight_seed": [1],
+        "activation": ['relu'],
+        "dropout": [0.0],
+        "state": ['stateful']
+    }
+
+    train_predictor(iohandler_tf0, network_properties_tf0)
+    train_predictor(iohandler_ts0, network_properties_ts0)
+
+    datahandler.create_submission(iohandler_tf0.load_best_model(), iohandler_ts0.load_best_model(), 'stateful')

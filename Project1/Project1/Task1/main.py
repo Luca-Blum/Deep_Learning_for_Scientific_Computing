@@ -57,7 +57,7 @@ def run_configuration(conf_dict, x, y, meta_info, io_handler, k_folds=5):
     # Xavier weight initialization
 
     if opt_type == "ADAM":
-        optimizer_ = optim.Adam(model.parameters(), lr=0.0001)
+        optimizer_ = optim.Adam(model.parameters(), lr=0.001)
     elif opt_type == "LBFGS":
         optimizer_ = optim.LBFGS(model.parameters(), lr=0.1, max_iter=1, max_eval=50000,
                                  tolerance_change=1.0 * np.finfo(float).eps)
@@ -190,32 +190,31 @@ if __name__ == "__main__":
 
     network_properties_tf0 = {
         "hidden_layers": [4],
-        "neurons": [100],
-        "regularization_exp": [1],
-        "regularization_param": [0],
-        "batch_size": [16],
-        "epochs": [1000],
+        "neurons": [400],
+        "regularization_exp": [2],
+        "regularization_param": [1e-4],
+        "batch_size": [32],
+        "epochs": [4000],
         "optimizer": ["ADAM"],
-        "init_weight_seed": [70],
-        "activation": ['relu', 'tanh', 'sigmoid'],
-        "dropout": [0.0]
+        "init_weight_seed": [1],
+        "activation": ['relu'],
+        "dropout": [0.1]
     }
 
-    train_predictor(ioh_tf0, network_properties_tf0)
-
     network_properties_ts0 = {
-        "hidden_layers": [4],
-        "neurons": [100],
-        "regularization_exp": [1],
+        "hidden_layers": [8],
+        "neurons": [400],
+        "regularization_exp": [2],
         "regularization_param": [0],
-        "batch_size": [16],
-        "epochs": [1000],
+        "batch_size": [32],
+        "epochs": [4000],
         "optimizer": ["ADAM"],
-        "init_weight_seed": [70],
-        "activation": ['relu', 'tanh', 'sigmoid'],
+        "init_weight_seed": [1],
+        "activation": ['relu'],
         "dropout": [0.0]
     }
 
     train_predictor(ioh_ts0, network_properties_ts0)
+    train_predictor(ioh_tf0, network_properties_tf0)
 
     datahandler.create_submission(ioh_tf0.load_best_model(), ioh_ts0.load_best_model())

@@ -2,6 +2,7 @@ import pandas as pd
 import torch
 import numpy as np
 from sklearn import preprocessing
+from torch.utils.data import DataLoader
 
 from pipeline3 import IOHandler
 from pathlib import Path
@@ -31,24 +32,22 @@ class Datahandler:
         self.ts0_training = self.training_df['ts0'].values.astype(np.float32)
         self.t_training = torch.tensor(self.training_df['t'].values.astype(np.float32).reshape((-1, 1)))
 
-        self.train_window = 17
+        self.train_window_tf0 = 35
+        self.train_window_ts0 = 34
         self.prediction_offset = 1
-
-        if self.train_window <= self.prediction_offset:
-            raise ValueError("training window needs to be larger than prediction offset")
 
         self.tf0_x = []
         self.tf0_y = []
 
-        l = len(self.tf0_training)
-        for i in range(l - self.train_window):
+        length = len(self.tf0_training)
+        for i in range(length - self.train_window_tf0):
             '''
             train_seq = tso_training[i: i + self.train_window]
             train_label = tso_training[i + self.train_window: i + self.train_window + self.prediction_window]
             '''
 
-            train_seq = self.tf0_training[i: i + self.train_window]
-            train_label = self.tf0_training[i + self.prediction_offset: i + self.train_window + self.prediction_offset]
+            train_seq = self.tf0_training[i: i + self.train_window_tf0]
+            train_label = self.tf0_training[i + self.prediction_offset: i + self.train_window_tf0 + self.prediction_offset]
 
             self.tf0_x.append(train_seq.reshape((-1, 1)))
             self.tf0_y.append(train_label)
@@ -59,15 +58,15 @@ class Datahandler:
         self.ts0_x = []
         self.ts0_y = []
 
-        l = len(self.ts0_training)
-        for i in range(l - self.train_window):
+        length = len(self.ts0_training)
+        for i in range(length - self.train_window_ts0):
             '''
             train_seq = tso_training[i: i + self.train_window]
             train_label = tso_training[i + self.train_window: i + self.train_window + self.prediction_window]
             '''
 
-            train_seq = self.ts0_training[i: i + self.train_window]
-            train_label = self.ts0_training[i + self.prediction_offset: i + self.train_window + self.prediction_offset]
+            train_seq = self.ts0_training[i: i + self.train_window_ts0]
+            train_label = self.ts0_training[i + self.prediction_offset: i + self.train_window_ts0 + self.prediction_offset]
 
             self.ts0_x.append(train_seq.reshape((-1, 1)))
             self.ts0_y.append(train_label)
@@ -90,7 +89,7 @@ class Datahandler:
             basepath = path.dirname(__file__)
 
             output_dir_path = path.abspath(path.join(basepath, "..", "submission"))
-            self.output_path = path.join(output_dir_path, "submission.txt")
+            self.output_path = path.join(output_dir_path, "task3_submission.txt")
 
             # Create directory for submission
             if not Path(output_dir_path).is_dir():
@@ -109,7 +108,7 @@ class Datahandler:
     def get_raw(self, target_type: str):
         """
         :param target_type: specify target variable ['tf0', 'ts0']
-        :return: tensor with either target variable 'tf0' or 'ts0'
+        :return: numpy ndarray full dataframe with either target variable 'tf0' or 'ts0'
         """
 
         if target_type == 'ts0':
@@ -117,14 +116,19 @@ class Datahandler:
         else:
             return self.tf0_training
 
-    def create_submission(self, model_tf0, model_ts0):
+    def create_submission(self, model_tf0, model_ts0, state):
+        """
+        Creates prediction for Testing data with trained model and writes result to text file
+        Networks will be primed before making prediction
+        """
 
         if self.output_path is None:
             raise ValueError("testing file was not specified during initialization")
+        if model_tf0 is None or model_ts0 is None:
+            raise ValueError("provide 2 valid neural networks")
 
-        """
-        Creates prediction for Testing data with trained model and writes result to text file
-        """
+        if state in ["stateless", "rnn", "gru"]:
+            return self.create_submission_stateless(model_tf0, model_ts0)
 
         previous_tf0, hidden_tf0 = self.priming(model_tf0, 'tf0')
         previous_ts0, hidden_ts0 = self.priming(model_ts0, 'ts0')
@@ -132,6 +136,24 @@ class Datahandler:
         predictions_tf0 = []
         predictions_ts0 = []
 
+        for t in self.t_testing:
+            hidden_tf0 = tuple([each.data for each in hidden_tf0])
+            previous_tf0, hidden_tf0 = model_tf0(previous_tf0.reshape((1, -1, 1)), hidden_tf0)
+            predictions_tf0.append(previous_tf0.detach().numpy()[-1, 0])
+
+            hidden_ts0 = tuple([each.data for each in hidden_ts0])
+            previous_ts0, hidden_ts0 = model_ts0(previous_ts0.reshape((1, -1, 1)), hidden_ts0)
+            predictions_ts0.append(previous_ts0.detach().numpy()[-1, 0])
+
+        self.submission['tf0'] = np.array(predictions_tf0)
+        self.submission['ts0'] = np.array(predictions_ts0)
+
+        self.submission['tf0'] = self.tf0_scaler.inverse_transform(self.submission[['tf0']])
+        self.submission['ts0'] = self.ts0_scaler.inverse_transform(self.submission[['ts0']])
+
+        self.submission.to_csv(self.output_path, index=False)
+
+        """
         for t in self.t_testing:
 
             hidden_tf0 = tuple([each.data for each in hidden_tf0])
@@ -149,23 +171,25 @@ class Datahandler:
         self.submission['ts0'] = self.ts0_scaler.inverse_transform(self.submission[['ts0']])
 
         self.submission.to_csv(self.output_path, index=False)
+        
+        """
 
     def create_submission_stateless(self, model_tf0, model_ts0):
-
-        if self.output_path is None:
-            raise ValueError("testing file was not specified during initialization")
-
         """
         Creates prediction for Testing data with trained model and writes result to text file
         """
+        if self.output_path is None:
+            raise ValueError("testing file was not specified during initialization")
+        if model_tf0 is None or model_ts0 is None:
+            raise ValueError("provide 2 valid neural networks")
 
         predictions_tf0 = []
         predictions_ts0 = []
 
-        last_tf0 = torch.FloatTensor([self.tf0_training[-self.train_window:]]).reshape((-1, 1))
-        last_ts0 = torch.FloatTensor([self.ts0_training[-self.train_window:]]).reshape((-1, 1))
+        last_tf0 = torch.FloatTensor([self.tf0_training[-self.train_window_tf0:]]).reshape((-1, 1))
+        last_ts0 = torch.FloatTensor([self.ts0_training[-self.train_window_ts0:]]).reshape((-1, 1))
 
-        for t in self.t_testing:
+        for _ in self.t_testing:
             last_tf0 = model_tf0(last_tf0.reshape((-1, 1, 1)))
             predictions_tf0.append(last_tf0.detach().numpy()[-1, 0])
 
@@ -181,40 +205,59 @@ class Datahandler:
         self.submission.to_csv(self.output_path, index=False)
 
     def priming(self, model, target_type):
+        """
+        :param model: trained neural network
+        :param target_type: define type ['tf0', 'ts0']
+        primes the neural network
+        """
         model.eval()
 
-        prime = self.get_raw(target_type)
+        times, preds = self.get_data(target_type)
+
+        training_set = DataLoader(torch.utils.data.TensorDataset(times, preds), batch_size=1,
+                                  shuffle=False, drop_last=True)
 
         hidden = model.init_hidden(1)
-        out = 0
-        for x in prime:
-            feature = torch.from_numpy(np.array([[[x]]]))
+
+        out = None
+
+        for t, pred in training_set:
             hidden = tuple([each.data for each in hidden])
-            out, hidden = model(feature, hidden)
+            out, hidden = model(t, hidden)
+            break
 
         return out, hidden
 
     def plot_data(self):
+        """
+        Plots training data
+        """
 
         tf0 = self.tf0_scaler.inverse_transform(self.training_df[['tf0']])
         ts0 = self.ts0_scaler.inverse_transform(self.training_df[['ts0']])
 
-        plt.plot(self.t_training, tf0, label="tf0")
-        plt.plot(self.t_training, ts0, label="ts0")
+        plt.plot(self.t_scaler.inverse_transform(self.t_training), tf0, label="tf0")
+        plt.plot(self.t_scaler.inverse_transform(self.t_training), ts0, label="ts0")
         plt.legend()
-        plt.xlabel("x")
-        plt.ylabel("y")
+        plt.xlabel("Time")
+        plt.ylabel("Temperature")
         plt.show()
 
     def plot_submission(self):
-        plt.plot(self.t_testing, self.submission['tf0'].values, label="testing tf0")
-        plt.plot(self.t_testing, self.submission['ts0'].values, label="testing ts0")
+        """
+        Plots predicted submission
+        """
+        plt.plot(self.submission[['t']].to_numpy().flatten(), self.submission['tf0'].values, label="testing tf0")
+        plt.plot(self.submission[['t']].to_numpy().flatten(), self.submission['ts0'].values, label="testing ts0")
         plt.legend()
-        plt.xlabel("x")
-        plt.ylabel("y")
+        plt.xlabel("Time")
+        plt.ylabel("Temperature")
         plt.show()
 
     def plot_all(self):
+        """
+        Plots training data and the time series prediction afterwards
+        """
 
         tf0 = self.tf0_scaler.inverse_transform(self.training_df[['tf0']])
         ts0 = self.ts0_scaler.inverse_transform(self.training_df[['ts0']])
@@ -222,11 +265,14 @@ class Datahandler:
         tf0 = np.append(tf0.flatten(), self.submission[['tf0']].to_numpy().flatten())
         ts0 = np.append(ts0.flatten(), self.submission[['ts0']].to_numpy().flatten())
 
-        plt.plot(range(len(tf0)), tf0, label="tf0")
-        plt.plot(range(len(ts0)), ts0, label="ts0")
+        time = np.append(self.t_scaler.inverse_transform(self.t_training).flatten(),
+                         self.submission[['t']].to_numpy().flatten())
+
+        plt.plot(time, tf0, label="tf0")
+        plt.plot(time, ts0, label="ts0")
         plt.legend()
-        plt.xlabel("x")
-        plt.ylabel("y")
+        plt.xlabel("Time")
+        plt.ylabel("Temperature")
         plt.show()
 
 
@@ -242,6 +288,8 @@ if __name__ == "__main__":
 
     datahandler = Datahandler(training_filename, testing_filename)
 
-    datahandler.create_submission(iohandler_tf0.load_best_running_model(), iohandler_ts0.load_best_running_model())
+    datahandler.create_submission(iohandler_tf0.load_best_running_model(), iohandler_ts0.load_best_running_model(),
+                                  "stateful")
 
     datahandler.plot_all()
+    datahandler.plot_submission()

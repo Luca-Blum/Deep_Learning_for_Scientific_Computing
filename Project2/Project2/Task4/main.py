@@ -186,15 +186,15 @@ if __name__ == "__main__":
 
     properties = {
         "hidden_layers": [4],
-        "neurons": [100],
-        "regularization_exp": [1],
-        "regularization_param": [0],
-        "batch_size": [16],
+        "neurons": [100, 200],
+        "regularization_exp": [2],
+        "regularization_param": [1e-5],
+        "batch_size": [8],
         "epochs": [1000],
         "optimizer": ["ADAM"],
-        "init_weight_seed": [70],
-        "activation": ['relu', 'tanh', 'sigmoid'],
-        "dropout": [0.0]
+        "init_weight_seed": [13],
+        "activation": ['relu'],
+        "dropout": [0.0, 0.1]
     }
 
     train_predictor(ioh, properties)

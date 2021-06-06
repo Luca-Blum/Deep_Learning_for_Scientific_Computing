@@ -2,11 +2,8 @@ import torch
 import torch.nn as nn
 import torch.utils
 import torch.utils.data
-import numpy as np
-from torch.autograd import Variable
 from tqdm import tqdm
 
-# https://blog.floydhub.com/long-short-term-memory-from-zero-to-hero-with-pytorch/
 
 class LSTM2(nn.Module):
     def __init__(self, input_size, output_size, hidden_dim, n_layers, drop_prob=0.0, regularization_param=0.0,
@@ -125,7 +122,7 @@ def fit_2(model, training_set, validation_set, num_epochs, optimizer, meta, batc
                 loss = loss_u + regularization_param * loss_reg
                 loss.backward()
                 # Compute average training loss over batches for the current epoch
-                running_loss[0] += loss.item() * x_train_.size(0)
+                running_loss[0] += loss.item() # * x_train_.size(0)
                 return loss
 
             optimizer.step(closure=closure)
@@ -148,7 +145,7 @@ def fit_2(model, training_set, validation_set, num_epochs, optimizer, meta, batc
             prediction = model(inputs)
 
             running_validation_loss += torch.mean((prediction.reshape(-1, )
-                                                   - targets.reshape(-1, )) ** p).item() * inputs.size(0)
+                                                   - targets.reshape(-1, )) ** p).item() # * inputs.size(0)
 
         history[1].append(running_validation_loss / len(validation_set))
 

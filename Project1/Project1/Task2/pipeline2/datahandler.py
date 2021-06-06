@@ -79,7 +79,7 @@ class Datahandler:
             basepath = path.dirname(__file__)
 
             output_dir_path = path.abspath(path.join(basepath, "..", "submission"))
-            self.output_path = path.join(output_dir_path, "submission.txt")
+            self.output_path = path.join(output_dir_path, "task2_submission.txt")
 
             # Create directory for submission
             if not Path(output_dir_path).is_dir():
@@ -93,10 +93,11 @@ class Datahandler:
 
             self.testing_dfs = {}
             # Create different scalings
-            for idx, scaler in enumerate(self.scalers_pred):
+            for idx, name in enumerate(self.names):
                 copy = testing_df.copy()
-                copy[self.predictors] = self.scalers_pred[self.names[idx]].transform(testing_df[self.predictors])
-                self.testing_dfs[self.names[idx]] = torch.tensor(copy[self.predictors].
+                copy[self.predictors] = self.scalers_pred[name].transform(copy[self.predictors])
+                copy[self.target] = self.scalers_target[name].transform(copy[self.target])
+                self.testing_dfs[name] = torch.tensor(copy[self.predictors].
                                                                  values.astype(np.float32).reshape((-1, 8)))
 
             self.debug_df = testing_df
@@ -121,14 +122,18 @@ class Datahandler:
 
         if self.output_path is None:
             raise ValueError("testing file was not specified during initialization")
+        if models is None or None in models:
+            raise ValueError("provide 3 a valid neural networks")
 
         combination = np.zeros((self.testing_dfs[self.names[0]].shape[0], 1))
 
         for idx, model in enumerate(models):
+            model.eval()
             prediction = model(self.testing_dfs[self.names[idx]])
             self.predictions[self.names[idx]] = prediction.detach().numpy()
             scaled = self.scalers_target[self.names[idx]].inverse_transform(prediction.detach().numpy())
             combination = combination + scaled
+            model.train()
 
         self.submission = pd.DataFrame(combination)
 
@@ -140,7 +145,8 @@ class Datahandler:
         :return: None
         """
         for name in self.names:
-            plt.plot(range(self.training_dfs[name][['y']].shape[0]), self.training_dfs[name][['y']], label="y")
+            plt.plot(range(self.training_dfs[name][['y']].shape[0]),
+                     self.scalers_target[name].inverse_transform(self.training_dfs[name][['y']]), label="y")
             plt.legend()
             plt.xlabel("x")
             plt.ylabel("y")
@@ -161,6 +167,16 @@ class Datahandler:
         plt.ylabel("y")
         plt.show()
 
+    def plot_submission(self):
+        """
+        Plots the prediction
+        """
+        plt.plot(range(self.submission.shape[0]), self.submission, label="y_predict")
+        plt.legend()
+        plt.xlabel("x")
+        plt.ylabel("y")
+        plt.show()
+
 
 if __name__ == "__main__":
     dirname = path.dirname(__file__)
@@ -171,7 +187,7 @@ if __name__ == "__main__":
 
     datahandler = Datahandler([training_filename_101, training_filename_401, training_filename_1601],
                               ['101', '401', '1601'],
-                              training_filename_1601, debug=True)
+                              testing_filename, debug=True)
 
     iohandler_101 = IOHandler('101')
     iohandler_401 = IOHandler('401')
@@ -182,3 +198,4 @@ if __name__ == "__main__":
 
     # datahandler.plot_data()
     datahandler.plot_debug()
+    datahandler.plot_submission()

@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-from torch import optim
+from torch import optim, nn
 from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
 import itertools
@@ -35,15 +35,24 @@ def run_configuration(conf_dict, x, y, meta_info, io_handler, k_folds=5):
     regularization_exp = conf_dict["regularization_exp"]
     retrain = conf_dict["init_weight_seed"]
     batch_size = conf_dict["batch_size"]
+    activation_type = conf_dict["activation"]
+    dropout = conf_dict["dropout"]
+
+    if activation_type == "sigmoid":
+        activation = nn.Sigmoid()
+    elif activation_type == "tanh":
+        activation = nn.Tanh()
+    else:
+        activation = nn.ReLU()
 
     model = Network1(input_dimension=8,
                      output_dimension=1,
                      n_hidden_layers=n_hidden_layers,
                      neurons=neurons,
                      regularization_param=regularization_param,
-                     regularization_exp=regularization_exp)
-
-    # Xavier weight initialization
+                     regularization_exp=regularization_exp,
+                     activation=activation,
+                     dropout=dropout)
 
     if opt_type == "ADAM":
         optimizer_ = optim.Adam(model.parameters(), lr=0.0001)
@@ -106,18 +115,13 @@ def run_configuration(conf_dict, x, y, meta_info, io_handler, k_folds=5):
     return training_loss_total, validation_loss_total
 
 
-def train_predictor(iohandler):
-
-    network_properties = {
-        "hidden_layers": [4],
-        "neurons": [100],
-        "regularization_exp": [1],
-        "regularization_param": [0],
-        "batch_size": [16],
-        "epochs": [1000],
-        "optimizer": ["ADAM"],
-        "init_weight_seed": [70]
-    }
+def train_predictor(iohandler, network_properties, debug=False):
+    """
+    :param iohandler: handler for the input and output of the models
+    :param network_properties: dictionary of different configurations
+    :param debug: plot losses of different configurations
+    :return: trains the NN with the given configurations and calculates the training and validation loss
+    """
 
     settings = list(itertools.product(*network_properties.values()))
 
@@ -138,7 +142,9 @@ def train_predictor(iohandler):
             "batch_size": setup[4],
             "epochs": setup[5],
             "optimizer": setup[6],
-            "init_weight_seed": setup[7]
+            "init_weight_seed": setup[7],
+            "activation": setup[8],
+            "dropout": setup[9]
         }
 
         meta['current_conf'] = set_num
@@ -162,14 +168,14 @@ def train_predictor(iohandler):
     train_err_conf = np.array(train_err_conf)
     val_err_conf = np.array(val_err_conf)
 
-    configuration_number = np.linspace(start=0.0, stop=len(train_err_conf), num=len(train_err_conf), endpoint=False)
-
-    plt.plot(configuration_number, train_err_conf, label="Training Error")
-    plt.plot(configuration_number, val_err_conf, label="Validation Error")
-    plt.legend()
-    plt.xlabel("Configuration")
-    plt.ylabel("Loss")
-    # plt.show()
+    if debug:
+        configuration_number = np.linspace(start=0.0, stop=len(train_err_conf), num=len(train_err_conf), endpoint=False)
+        plt.plot(configuration_number, train_err_conf, label="Training Error")
+        plt.plot(configuration_number, val_err_conf, label="Validation Error")
+        plt.legend()
+        plt.xlabel("Configuration")
+        plt.ylabel("Loss")
+        plt.show()
 
 
 if __name__ == "__main__":
@@ -184,13 +190,50 @@ if __name__ == "__main__":
                               ['101', '401', '1601'],
                               testing_filename)
 
+    properties_101 = {
+        "hidden_layers": [4],
+        "neurons": [100],
+        "regularization_exp": [1],
+        "regularization_param": [1e-5],
+        "batch_size": [16],
+        "epochs": [1000],
+        "optimizer": ["ADAM"],
+        "init_weight_seed": [70],
+        "activation": ['tanh'],
+        "dropout": [0.1]
+    }
+    properties_401 = {
+        "hidden_layers": [12],
+        "neurons": [120, 180],
+        "regularization_exp": [2],
+        "regularization_param": [1e-4],
+        "batch_size": [8],
+        "epochs": [1000],
+        "optimizer": ["ADAM"],
+        "init_weight_seed": [19],
+        "activation": ['tanh', 'sigmoid'],
+        "dropout": [0.0]
+    }
+    properties_1601 = {
+        "hidden_layers": [16],
+        "neurons": [100, 200],
+        "regularization_exp": [2],
+        "regularization_param": [1e-5],
+        "batch_size": [4, 32],
+        "epochs": [1000],
+        "optimizer": ["ADAM"],
+        "init_weight_seed": [1],
+        "activation": ['tanh', 'sigmoid'],
+        "dropout": [0.1]
+    }
+
     iohandler_101 = IOHandler('101')
     iohandler_401 = IOHandler('401')
     iohandler_1601 = IOHandler('1601')
 
-    train_predictor(iohandler_101)
-    train_predictor(iohandler_401)
-    train_predictor(iohandler_1601)
+    train_predictor(iohandler_101, properties_101)
+    train_predictor(iohandler_401, properties_401)
+    train_predictor(iohandler_1601, properties_1601)
 
     datahandler.create_submission([iohandler_101.load_best_model(),
                                    iohandler_401.load_best_model(),
